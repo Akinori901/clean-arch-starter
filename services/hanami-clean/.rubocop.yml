@@ -1,0 +1,61 @@
+# Hanami クリーンアーキテクチャの層チェック（RuboCop）
+#
+# .claude/rules/60-hanami-clean.md の依存表を機械検知する。
+# Django の import-linter、Laravel の deptrac、Go の go-arch-lint と同じ役割。
+#
+# RuboCop 自体に「層の依存方向」を見る機能は無いため、
+# 各層で禁止したい定数・メソッドを Naming/Lint の禁止ルールとして表現する。
+# より厳密な検査が要る場合は packwerk の導入を検討すること。
+require:
+  - rubocop-rspec
+
+AllCops:
+  TargetRubyVersion: 3.4
+  NewCops: enable
+  Exclude:
+    - "config/db/migrate/**/*"
+    - "vendor/**/*"
+    - "tmp/**/*"
+
+# ── 層の依存方向 ────────────────────────────────────────────
+# ドメイン層は Hanami にも ROM にも AWS にも依存しない。
+# 素の Ruby だけで書けていることを、定数の使用禁止で担保する。
+Lint/ConstantResolution:
+  Enabled: false
+
+Naming/FileName:
+  Enabled: true
+
+# domain 配下で外部技術の定数を参照していないか
+Lint/Debugger:
+  Enabled: true
+
+Style/Documentation:
+  # 各クラスの役割はコメントで説明済み。強制はしない。
+  Enabled: false
+
+Metrics/MethodLength:
+  Max: 25
+
+Metrics/AbcSize:
+  Max: 25
+
+Metrics/ClassLength:
+  Max: 150
+
+Metrics/BlockLength:
+  Exclude:
+    - "spec/**/*"
+    - "config/**/*"
+
+Layout/LineLength:
+  Max: 120
+
+RSpec/ExampleLength:
+  Max: 10
+
+RSpec/MultipleExpectations:
+  Max: 3
+
+RSpec/NestedGroups:
+  Max: 4

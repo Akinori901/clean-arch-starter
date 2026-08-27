@@ -2,6 +2,9 @@
 line-length = 100
 src = ["src"]
 target-version = "py312"
+# マイグレーションは Django が自動生成するため、整形の対象外にする。
+# 手で直しても makemigrations で元に戻る。
+extend-exclude = ["**/migrations/*"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "SIM", "TID"]

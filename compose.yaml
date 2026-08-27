@@ -177,6 +177,37 @@ services:
       storage:
         condition: service_healthy
 
+  hanami:
+    build:
+      context: ./services/hanami-clean
+      dockerfile: ../../docker/hanami/Dockerfile
+      target: dev
+    command: bundle exec puma -b tcp://0.0.0.0:8003
+    environment:
+      DATABASE_URL: mysql2://app:app@db:3306/app
+      AWS_REGION: ap-northeast-1
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: localsecret
+      S3_BUCKET: app-static
+      S3_ENDPOINT: http://storage:8333
+      COGNITO_ENDPOINT: http://cognito:9229
+      COGNITO_USER_POOL_ID: ${COGNITO_USER_POOL_ID:-local_pool}
+      COGNITO_CLIENT_ID: ${COGNITO_CLIENT_ID:-local-client-id}
+      COGNITO_ISSUER_OVERRIDE: http://localhost:9229/${COGNITO_USER_POOL_ID:-local_pool}
+      COGNITO_JWKS_URL_OVERRIDE: http://cognito:9229/${COGNITO_USER_POOL_ID:-local_pool}/.well-known/jwks.json
+      HANAMI_ENV: development
+    ports:
+      - "8003:8003"
+    volumes:
+      - ./services/hanami-clean:/app
+      # gem のキャッシュを保持する（毎回の bundle install を避ける）
+      - bundle-cache:/usr/local/bundle
+    depends_on:
+      db:
+        condition: service_healthy
+      storage:
+        condition: service_healthy
+
   frontend:
     build:
       context: ./services/frontend-react
@@ -198,3 +229,4 @@ volumes:
   db-data:
   storage-data:
   go-mod-cache:
+  bundle-cache:

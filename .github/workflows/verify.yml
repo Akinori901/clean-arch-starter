@@ -79,6 +79,62 @@ jobs:
       - name: テスト
         run: ./vendor/bin/phpunit --testsuite Unit
 
+  go:
+    name: Go (クリーンアーキ層検証)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/go-clean
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+          cache-dependency-path: services/go-clean/go.sum
+
+      # golangci-lint も go vet も「層の依存方向」は見ない。
+      # 「entity が DB ドライバを import していないか」は専用ツールが要る。
+      - name: 層の依存方向を検証（go-arch-lint）
+        run: |
+          go install github.com/fe3dback/go-arch-lint@latest
+          "$(go env GOPATH)/bin/go-arch-lint" check
+
+      - name: 静的解析（golangci-lint）
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.13.1
+          working-directory: services/go-clean
+
+      - name: フォーマット確認
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+
+      - run: go vet ./...
+      - run: go test ./... -count=1
+
+  hanami:
+    name: Hanami (クリーンアーキ層検証)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/hanami-clean
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+          working-directory: services/hanami-clean
+
+      # RuboCop は「層の依存方向」を見られないため専用スクリプトで検証する。
+      - name: 層の依存方向を検証
+        run: ruby bin/verify-layers
+
+      - name: 静的解析（RuboCop）
+        run: bundle exec rubocop
+
+      - name: テスト（ドメイン層は Hanami を起動せずに動く）
+        run: bundle exec rspec spec/domain -I lib -I spec
+
   frontend:
     name: Frontend (境界検証)
     runs-on: ubuntu-latest

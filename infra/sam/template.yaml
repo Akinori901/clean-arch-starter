@@ -15,6 +15,12 @@ Parameters:
   LaravelImageUri:
     Type: String
     Description: ECR に push 済みの Laravel コンテナイメージ URI
+  GoImageUri:
+    Type: String
+    Description: ECR に push 済みの Go コンテナイメージ URI
+  HanamiImageUri:
+    Type: String
+    Description: ECR に push 済みの Hanami コンテナイメージ URI
   DbHost:
     Type: String
     Description: RDS のエンドポイント（Terraform 側で作る場合は SSM から渡す）
@@ -137,6 +143,67 @@ Resources:
           Properties:
             ApiId: !Ref HttpApi
             Path: /laravel/{proxy+}
+            Method: ANY
+
+  GoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      ImageUri: !Ref GoImageUri
+      VpcConfig:
+        SubnetIds: !Ref VpcSubnetIds
+        SecurityGroupIds: [!Ref LambdaSecurityGroupId]
+      Environment:
+        Variables:
+          DB_HOST: !Ref DbHost
+          DB_NAME: app
+          COGNITO_USER_POOL_ID: !Ref UserPool
+          COGNITO_CLIENT_ID: !Ref UserPoolClient
+          S3_BUCKET: !Ref AssetBucket
+      Policies:
+        - AWSSecretsManagerGetSecretValuePolicy: { SecretArn: !Ref DbSecretArn }
+        - S3CrudPolicy: { BucketName: !Ref AssetBucket }
+        - Statement:
+            - Effect: Allow
+              Action: [cognito-idp:DescribeUserPool]
+              Resource: !GetAtt UserPool.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /go/{proxy+}
+            Method: ANY
+
+  HanamiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      ImageUri: !Ref HanamiImageUri
+      VpcConfig:
+        SubnetIds: !Ref VpcSubnetIds
+        SecurityGroupIds: [!Ref LambdaSecurityGroupId]
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub 'mysql2://app@${DbHost}:3306/app'
+          COGNITO_USER_POOL_ID: !Ref UserPool
+          COGNITO_CLIENT_ID: !Ref UserPoolClient
+          S3_BUCKET: !Ref AssetBucket
+          # Lambda は /tmp 以外書き込み不可
+          TMPDIR: /tmp
+      Policies:
+        - AWSSecretsManagerGetSecretValuePolicy: { SecretArn: !Ref DbSecretArn }
+        - S3CrudPolicy: { BucketName: !Ref AssetBucket }
+        - Statement:
+            - Effect: Allow
+              Action: [cognito-idp:DescribeUserPool]
+              Resource: !GetAtt UserPool.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /hanami/{proxy+}
             Method: ANY
 
   HttpApi:

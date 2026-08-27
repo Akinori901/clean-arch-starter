@@ -9,6 +9,11 @@
 version: 3
 workdir: .
 
+# 外部テストパッケージ（package foo_test）は、テスト対象の自パッケージを
+# import するのが Go の標準的な作法。層違反ではないため除外する。
+excludeFiles:
+  - ".*_test\\.go$"
+
 allow:
   # vendor（外部ライブラリ）の持ち込みも層ごとに制限する。
   # 「entity に DB ドライバが入っていないか」は import 制限でしか止められない。

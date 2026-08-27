@@ -21,10 +21,12 @@ AI は「動くコード」を最短で書こうとするため、放ってお�
 それを防ぐのが `.claude/rules/` と CI の役割である。
 
 - **実装前に、必ず該当スタックのルールファイルを読むこと。**
-  - Django を触る → `10-django-ddd.md`
-  - Laravel を触る → `20-laravel-clean.md`
+  - Django を触る → `10-django-ddd.md`（DDD）
+  - Laravel を触る → `20-laravel-clean.md`（クリーンアーキ）
   - React を触る → `30-frontend.md`
   - インフラ/CD を触る → `40-infra-cd.md`
+  - Go を触る → `50-go-clean.md`（クリーンアーキ）
+  - Hanami(Ruby) を触る → `60-hanami-clean.md`（クリーンアーキ）
 - **新しいファイルを作る前に、そのファイルがどの層に属するか宣言すること。**
   層が決まらないファイルは、まだ設計が終わっていない。
 - **「とりあえず動かす」ための層跨ぎを禁止する。**
@@ -41,7 +43,14 @@ AI は「動くコード」を最短で書こうとするため、放ってお�
 | Django | ruff / mypy | 静的解析・型 |
 | Laravel | deptrac | 層の依存方向（クリーンアーキ） |
 | Laravel | PHPStan | 静的解析・型 |
-| 共通 | 構造チェッカ | 禁止ディレクトリ・命名規約 |
+| Go | go-arch-lint | 層の依存方向（クリーンアーキ） |
+| Go | golangci-lint / go vet | 静的解析 |
+| Hanami | bin/verify-layers | 層の依存方向（クリーンアーキ） |
+| Hanami | RuboCop | 静的解析 |
+| React | eslint-plugin-boundaries | feature 間の境界 |
+
+**どの層検証も「違反を注入したら落ちること」を確認してある。**
+落ちないルールは、書いていないのと同じ。
 
 ## 秘密情報
 

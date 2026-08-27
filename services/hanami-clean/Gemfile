@@ -1,0 +1,41 @@
+# frozen_string_literal: true
+
+source "https://rubygems.org"
+
+# Hanami 3 系では Action の gem 名が hanami-action（旧 hanami-controller）。
+# hanami-controller は hanami-utils ~> 2.x を要求するため 3.0 とは解決できない。
+gem "hanami", "~> 3.0.0"
+gem "hanami-action", "~> 3.0.0"
+gem "hanami-router", "~> 3.0.0"
+gem "hanami-db", "~> 3.0.0"
+
+gem "dry-types", "~> 1.7"
+gem "dry-operation", ">= 1.0.1"
+gem "dry-validation", "~> 1.11"
+gem "dry-monads", "~> 1.9"
+
+gem "i18n", "~> 1.14"
+gem "puma", ">= 7.1"
+gem "rake"
+
+# 本番は RDS MySQL、ローカルも MySQL で揃える
+gem "mysql2"
+
+# aws-sdk は XML パーサを必須とするが、Ruby 3.4 では rexml が
+# 標準添付から外れている。明示しないと起動時に
+# "Unable to find a compatible xml library" で落ちる。
+gem "rexml"
+
+gem "aws-sdk-cognitoidentityprovider", "~> 1.100"
+gem "aws-sdk-s3", "~> 1.170"
+gem "jwt", "~> 2.10"
+
+group :development, :test do
+  gem "dotenv"
+  gem "rouge"
+end
+
+group :cli, :development, :test do
+  gem "hanami-rspec", "~> 3.0.0"
+  gem "rubocop", "~> 1.90", require: false
+end

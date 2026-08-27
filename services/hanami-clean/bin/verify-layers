@@ -1,0 +1,82 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Hanami クリーンアーキテクチャの層依存チェック。
+#
+# RuboCop は「層の依存方向」を見られないため、専用に用意している。
+# Django の import-linter / Laravel の deptrac / Go の go-arch-lint と同じ役割。
+#
+# 使い方: bin/verify-layers
+
+ROOT = File.expand_path("..", __dir__)
+
+# 層ごとに「参照してはならないパターン」を宣言する。
+RULES = [
+  {
+    name: "domain は外部技術に依存しない",
+    files: "lib/app_core/domain/**/*.rb",
+    # ドメインが Hanami / ROM / AWS を知った時点で、それはもうドメインではない
+    forbidden: {
+      /\bHanami\b/ => "Hanami",
+      /\bROM\b/ => "ROM",
+      /\bAws::/ => "AWS SDK",
+      /\bSequel\b/ => "Sequel",
+      /^\s*include Deps\b/ => "Deps(DIコンテナ)"
+    }
+  },
+  {
+    name: "operations は ROM / AWS を直接触らない",
+    files: "app/operations/**/*.rb",
+    # 永続化・外部サービスは repos / gateways 経由で使う（Deps で注入される）
+    forbidden: {
+      /\bAws::/ => "AWS SDK",
+      /\bROM\b/ => "ROM",
+      /\bSequel\b/ => "Sequel",
+      /AppCore::Relations::/ => "Relation(直接参照)"
+    }
+  },
+  {
+    name: "actions はドメインの永続化を直接触らない",
+    files: "app/actions/**/*.rb",
+    forbidden: {
+      /\bAws::/ => "AWS SDK",
+      /AppCore::Relations::/ => "Relation(直接参照)",
+      /AppCore::Repos::/ => "Repo(直接参照。Operation 経由にすること)"
+    }
+  },
+  {
+    name: "repos / gateways 以外で Struct を露出しない",
+    files: "app/operations/**/*.rb",
+    forbidden: {
+      /AppCore::Structs::/ => "Struct(永続化の型。エンティティへ変換すること)"
+    }
+  }
+].freeze
+
+violations = []
+
+RULES.each do |rule|
+  Dir.glob(File.join(ROOT, rule[:files])).each do |path|
+    source = File.read(path)
+    relative = path.delete_prefix("#{ROOT}/")
+
+    source.each_line.with_index(1) do |line, lineno|
+      next if line.strip.start_with?("#") # コメントは対象外
+
+      rule[:forbidden].each do |pattern, label|
+        next unless pattern.match?(line)
+
+        violations << "#{relative}:#{lineno}  [#{rule[:name]}] #{label} を参照している"
+      end
+    end
+  end
+end
+
+if violations.empty?
+  puts "層チェック: OK（違反なし）"
+  exit 0
+end
+
+warn "層チェック: #{violations.size} 件の違反"
+violations.each { |v| warn "  #{v}" }
+exit 1

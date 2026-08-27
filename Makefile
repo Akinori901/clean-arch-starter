@@ -18,6 +18,8 @@ up: ## 全サービスを起動（初回は seed も実行すること）
 	$(DC) up storage-init
 	@echo "  Django   : http://localhost:8000/api/health"
 	@echo "  Laravel  : http://localhost:8001/api/health"
+	@echo "  Go       : http://localhost:8002/api/health"
+	@echo "  Hanami   : http://localhost:8003/api/health"
 	@echo "  Frontend : http://localhost:5173"
 
 down: ## 停止（ボリュームは残す）
@@ -39,7 +41,7 @@ migrate: ## Django のマイグレーション
 	$(DC) run --rm django python manage.py migrate
 
 ## ── 規約検証（CI と同じ内容）──────────────────────────────
-verify: verify-django verify-laravel verify-front ## 全スタックの層検証 + 静的解析 + テスト
+verify: verify-django verify-laravel verify-go verify-hanami verify-front ## 全スタックの層検証 + 静的解析 + テスト
 
 verify-django: ## Django: 層検証(import-linter) + ruff + mypy + pytest
 	@echo "==> Django DDD 層検証"
@@ -54,6 +56,19 @@ verify-laravel: ## Laravel: 層検証(deptrac) + PHPStan + PHPUnit
 	$(DC) run --rm laravel ./vendor/bin/phpstan analyse --no-progress
 	$(DC) run --rm laravel ./vendor/bin/phpunit --testsuite Unit
 
+verify-go: ## Go: 層検証(go-arch-lint) + vet + test
+	@echo "==> Go クリーンアーキ層検証"
+	$(DC) run --rm go sh -c "go install github.com/fe3dback/go-arch-lint@latest && \
+	  $$(go env GOPATH)/bin/go-arch-lint check"
+	$(DC) run --rm go go vet ./...
+	$(DC) run --rm go go test ./...
+
+verify-hanami: ## Hanami: 層検証 + RuboCop + RSpec
+	@echo "==> Hanami クリーンアーキ層検証"
+	$(DC) run --rm hanami ruby bin/verify-layers
+	$(DC) run --rm hanami bundle exec rubocop
+	$(DC) run --rm hanami bundle exec rspec spec/domain -I lib -I spec
+
 verify-front: ## Frontend: 境界検証(eslint-boundaries) + 型検査
 	@echo "==> フロント境界検証"
 	$(DC) run --rm frontend npm run lint
@@ -62,3 +77,5 @@ verify-front: ## Frontend: 境界検証(eslint-boundaries) + 型検査
 fmt: ## フォーマット
 	$(DC) run --rm django ruff format src tests
 	$(DC) run --rm laravel ./vendor/bin/pint
+	$(DC) run --rm go gofmt -w .
+	$(DC) run --rm hanami bundle exec rubocop -a

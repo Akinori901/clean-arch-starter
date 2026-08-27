@@ -9,11 +9,16 @@ AI にコードを書かせる前提で設計しています。
 AI は「動くコード」を最短で書こうとするため、放っておくと層を貫通します。
 それを止めるのが `.claude/rules/` と CI の役割です。
 
-```
-Django   → DDD             → import-linter が依存方向を検証
-Laravel  → クリーンアーキ   → deptrac が依存方向を検証
-React    → feature-sliced  → eslint-plugin-boundaries が境界を検証
-```
+| スタック | 構成 | 検証ツール |
+|---|---|---|
+| **Django** | DDD | import-linter |
+| **Laravel** | クリーンアーキテクチャ | deptrac |
+| **Go** | クリーンアーキテクチャ | go-arch-lint |
+| **Hanami** (Ruby) | クリーンアーキテクチャ | `bin/verify-layers` |
+| **React** | feature-sliced | eslint-plugin-boundaries |
+
+**どの検証も「違反を注入したら実際に落ちること」を確認済みです。**
+落ちないルールは、書いていないのと同じだからです。
 
 ## 何が入っているか
 
@@ -25,7 +30,7 @@ Cognito 認証（サインイン / 現在ユーザー取得）とヘルスチェ
 | DB | MySQL 8.4 | RDS MySQL |
 | オブジェクトストレージ | SeaweedFS（S3 API 互換） | S3 |
 | 認証 | cognito-local | Cognito User Pool |
-| Django / Laravel | Docker コンテナ | **Lambda**（コンテナイメージ） |
+| Django / Laravel / Go / Hanami | Docker コンテナ | **Lambda**（コンテナイメージ） |
 | React | Vite dev server | **S3 + CloudFront** |
 
 ローカルと本番で**同じ SDK・同じコードパス**を通します。
@@ -45,7 +50,11 @@ make verify      # 層検証 + 静的解析 + テスト（CI と同じ内容）
 動作確認:
 
 ```bash
-curl localhost:8000/api/health
+# 4サービスとも同じ API・同じ users テーブルを共有します
+curl localhost:8000/api/health   # Django (DDD)
+curl localhost:8001/api/health   # Laravel (クリーンアーキ)
+curl localhost:8002/api/health   # Go (クリーンアーキ)
+curl localhost:8003/api/health   # Hanami (クリーンアーキ)
 # {"healthy":true,"components":[{"name":"database","state":"up"}, ...]}
 
 curl -X POST localhost:8000/api/auth/sign-in \
@@ -67,9 +76,11 @@ curl -X POST localhost:8000/api/auth/sign-in \
 
 | スタック | 規約 | 検証ツール | 設定ファイル |
 |---|---|---|---|
-| Django | [`.claude/rules/10-django-ddd.md`](.claude/rules/10-django-ddd.md) | import-linter | `services/django-ddd/.importlinter` |
-| Laravel | [`.claude/rules/20-laravel-clean.md`](.claude/rules/20-laravel-clean.md) | deptrac | `services/laravel-clean/depfile.yaml` |
-| React | [`.claude/rules/30-frontend.md`](.claude/rules/30-frontend.md) | eslint-plugin-boundaries | `services/frontend-react/eslint.config.js` |
+| Django | [`10-django-ddd.md`](.claude/rules/10-django-ddd.md) | import-linter | `services/django-ddd/.importlinter` |
+| Laravel | [`20-laravel-clean.md`](.claude/rules/20-laravel-clean.md) | deptrac | `services/laravel-clean/depfile.yaml` |
+| React | [`30-frontend.md`](.claude/rules/30-frontend.md) | eslint-plugin-boundaries | `services/frontend-react/eslint.config.js` |
+| Go | [`50-go-clean.md`](.claude/rules/50-go-clean.md) | go-arch-lint | `services/go-clean/.go-arch-lint.yml` |
+| Hanami | [`60-hanami-clean.md`](.claude/rules/60-hanami-clean.md) | 専用スクリプト | `services/hanami-clean/bin/verify-layers` |
 
 **規約ドキュメントと設定ファイルは同じ内容です。**
 片方だけ直すと乖離するため、必ず両方を更新してください。
@@ -184,6 +195,84 @@ Dto（Model に一切依存しない末端ノード）
 
 `Repository` と `RepositoryInterface` は同じディレクトリに同居させるため、
 deptrac は**ディレクトリではなくクラス名サフィックス**で層を判別します。
+
+## Go — クリーンアーキテクチャ構成
+
+Go コミュニティでは DDD より**クリーンアーキテクチャ**が主流です
+（`go-clean-arch` 10k★・`go-clean-template` 7.6k★）。
+`internal/` によるパッケージ境界の強制が言語機能として効くため相性がよく、
+参照実装もクリーンアーキ寄りに揃っています。
+
+```
+services/go-clean/
+├── cmd/app/                 # main。HTTPサーバ / Lambda の切り替えのみ
+├── internal/
+│   ├── entity/              # 最内層。標準ライブラリのみ
+│   ├── usecase/             # ユースケース + 契約(interface)の定義
+│   ├── repo/                # MySQL / Cognito / S3 の実装
+│   ├── controller/http/     # chi ルータ
+│   └── app/                 # DI の結線（具象を知ってよい唯一の場所）
+└── pkg/                     # 公開してよい汎用部品のみ
+```
+
+### Go 特有の作法
+
+- **インターフェースは「使う側」で定義する。**
+  Repository の契約は `repo` ではなく `usecase` に置き、`repo` がそれを満たします。
+  これが Go における依存性逆転の書き方です。
+- **`repo` から `usecase` を import しない。**
+  共有したい型が出てきたら `entity` へ置きます
+  （実際にこれを踏み、`AuthTokens` を `entity` へ移しました）。
+- `internal/` は Go が import を禁じてくれるため、境界の強制に言語機能を使えます。
+
+## Hanami — クリーンアーキテクチャ構成（Ruby）
+
+**Rails ではなく Hanami を採用しています。**
+
+Rails にクリーンアーキテクチャを丸ごと被せるのは主流ではなく、
+アンチパターン扱いされることが多い構成です。Active Record が
+「Model が永続化を知っている」前提のため、Repository 層を挟むと
+フレームワークと戦い続けることになります。
+
+Hanami は最初からクリーンアーキテクチャ寄りに設計されています。
+
+- **DI コンテナ内蔵**（`Deps[...]`）
+- **ROM** — Entity と永続化が分離（Active Record と根本的に違う）
+- **Dry::Operation** — ユースケースを Result（Success/Failure）で表現
+
+```
+services/hanami-clean/
+├── lib/app_core/domain/     # 最内層。素の Ruby のみ（Hanami も ROM も知らない）
+│   ├── entities/
+│   ├── value_objects/
+│   └── errors.rb
+└── app/
+    ├── actions/             # Failure のタグ → HTTP ステータス変換のみ
+    ├── operations/          # Dry::Operation。ユースケース
+    ├── repos/               # ROM に触れてよい唯一の層。Struct → Entity 変換
+    ├── relations/           # ROM リレーション（スキーマ宣言のみ）
+    ├── structs/             # ROM Struct（**エンティティではない**）
+    └── gateways/            # Cognito / S3
+```
+
+### Struct と Entity を混同しない
+
+Hanami/ROM で最も間違えやすい点です。
+
+| | 意味 | 置き場所 |
+|---|---|---|
+| **Struct** | DB から読んだ「行」 | `app/structs/` |
+| **Entity** | 業務上の「ユーザー」 | `lib/app_core/domain/entities/` |
+
+Active Record と違い、**この2つは別物**です。変換は Repo が行い、
+その境界で永続化の都合を断ち切ります。
+
+```bash
+$ bundle exec rspec spec/domain
+21 examples, 0 failures in 0.018s
+```
+
+**Hanami を起動せず、DB も無しで 21 件が 0.018 秒**で終わります。
 
 ## React — feature-sliced 構成
 
