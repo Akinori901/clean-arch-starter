@@ -28,13 +28,43 @@ env:
   STACK_NAME: clean-arch-starter
 
 jobs:
+  # AWS の Secrets が設定されているかを判定する。
+  #
+  # secrets は job レベルの if: で直接参照できないため、
+  # ここで output に落としてから後続の if: で使う。
+  #
+  # 未設定の環境（テンプレートを clone しただけの状態）では
+  # デプロイ系ジョブをスキップし、ワークフロー全体は成功で終わらせる。
+  # 「動かせないものが常に赤い」状態にしないため。
+  gate:
+    name: デプロイ可否の判定
+    runs-on: ubuntu-latest
+    outputs:
+      deployable: ${{ steps.check.outputs.deployable }}
+    steps:
+      - id: check
+        env:
+          ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+        run: |
+          if [ -n "$ROLE_ARN" ]; then
+            echo "deployable=true" >> "$GITHUB_OUTPUT"
+            echo "AWS の Secrets を検出しました。デプロイを実行します。"
+          else
+            echo "deployable=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::AWS_DEPLOY_ROLE_ARN が未設定のため、デプロイ系ジョブをスキップします。"
+            echo "デプロイするには以下の Secrets を設定してください:"
+            echo "  AWS_DEPLOY_ROLE_ARN / DB_HOST / DB_SECRET_ARN / VPC_SUBNET_IDS / LAMBDA_SG_ID"
+          fi
+
   # デプロイ前に必ず層検証を通す。ここが落ちたら以降は動かない。
+  # Secrets の有無にかかわらず常に実行する（規約検証は環境に依存しないため）。
   verify:
     uses: ./.github/workflows/verify.yml
 
   backend:
     name: バックエンド（Lambda コンテナ）
-    needs: verify
+    needs: [gate, verify]
+    if: needs.gate.outputs.deployable == 'true'
     runs-on: ubuntu-latest
     outputs:
       django-image: ${{ steps.build.outputs.django-image }}
@@ -94,7 +124,8 @@ jobs:
 
   infra:
     name: SAM デプロイ
-    needs: backend
+    needs: [gate, backend]
+    if: needs.gate.outputs.deployable == 'true'
     runs-on: ubuntu-latest
     outputs:
       bucket: ${{ steps.out.outputs.bucket }}
@@ -156,7 +187,8 @@ jobs:
 
   frontend:
     name: フロント（S3 + CloudFront）
-    needs: infra
+    needs: [gate, infra]
+    if: needs.gate.outputs.deployable == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
