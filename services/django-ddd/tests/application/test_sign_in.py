@@ -4,7 +4,7 @@ import pytest
 
 from application.dto.auth_dto import SignInInput
 from application.usecases.sign_in import SignInUseCase
-from domain.entities.user import User
+from domain.aggregates.user_account import UserAccount
 from domain.exceptions import AuthenticationFailedError
 from domain.value_objects.email import Email
 from domain.value_objects.user_id import UserId
@@ -37,16 +37,9 @@ def test_deactivated_user_is_rejected_even_if_cognito_accepts() -> None:
 
     認証基盤の状態と業務上の有効/無効は別の関心事である。
     """
-    repo = InMemoryUserRepository(
-        [
-            User(
-                id=UserId("sub-1"),
-                email=Email("user@example.com"),
-                display_name="user",
-                is_active=False,
-            )
-        ]
-    )
+    account = UserAccount.register(UserId("sub-1"), Email("user@example.com"))
+    account.deactivate()
+    repo = InMemoryUserRepository([account])
     usecase = SignInUseCase(FakeAuthenticator(subject="sub-1"), repo)
 
     with pytest.raises(AuthenticationFailedError, match="無効化"):

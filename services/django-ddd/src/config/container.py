@@ -16,12 +16,15 @@ from application.ports.authenticator import AuthenticatorPort
 from application.ports.health_probe import HealthProbePort
 from application.usecases.check_health import CheckHealthUseCase
 from application.usecases.get_current_user import GetCurrentUserUseCase
+from application.usecases.rename_user import RenameUserUseCase
 from application.usecases.sign_in import SignInUseCase
 from domain.repositories.user_repository import UserRepository
+from domain.services.email_uniqueness_service import EmailUniquenessService
 from infrastructure.cognito.cognito_authenticator import CognitoAuthenticator
 from infrastructure.django_orm.repositories.django_user_repository import (
     DjangoUserRepository,
 )
+from infrastructure.django_orm.unit_of_work import DjangoUnitOfWork
 from infrastructure.health.probes import CognitoProbe, DatabaseProbe, ObjectStorageProbe
 
 
@@ -72,3 +75,13 @@ def get_current_user_usecase() -> GetCurrentUserUseCase:
 
 def check_health_usecase() -> CheckHealthUseCase:
     return CheckHealthUseCase(health_probes())
+
+
+def rename_user_usecase() -> RenameUserUseCase:
+    repo = user_repository()
+    return RenameUserUseCase(
+        repo,
+        # ドメインサービスも DI する。集約から Repository を直接触らせないため。
+        EmailUniquenessService(repo),
+        DjangoUnitOfWork(),
+    )

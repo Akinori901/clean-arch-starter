@@ -20,13 +20,13 @@ class GetCurrentUserUseCase:
     def execute(self, access_token: str) -> CurrentUserOutput:
         identity = self._authenticator.verify_access_token(access_token)
 
-        user = self._users.find_by_id(UserId(identity.subject))
-        if user is None:
+        account = self._users.find_by_id(UserId(identity.subject))
+        if account is None:
             raise UserNotFoundError("ユーザーが見つかりません")
 
         return CurrentUserOutput(
-            user_id=str(user.id),
-            email=str(user.email),
-            display_name=user.display_name,
-            is_active=user.is_active,
+            user_id=str(account.id),
+            email=str(account.user.email),
+            display_name=str(account.profile.display_name),
+            is_active=account.user.is_active,
         )

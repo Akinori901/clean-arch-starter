@@ -78,7 +78,28 @@ forbidden_modules =
 ignore_imports =
     interfaces.** -> config.**
 
-# --- 5. Django Model は infrastructure の外へ出ない -------------------
+# --- 5. 集約の内部エンティティは外から触らせない ----------------------
+# DDD の中核。集約の外からは「集約ルート経由でしか」触れない。
+# Profile を直接 import して書き換えると、ルートが守っている不変条件を
+# 迂回できてしまい、集約が集約でなくなる。
+#
+# aggregates は entities/value_objects を使う側なので、逆向き（内部→外）は許す。
+[importlinter:contract:aggregate-boundary]
+name = 集約の内部エンティティは application/interfaces から触らない
+type = forbidden
+source_modules =
+    application
+    interfaces
+forbidden_modules =
+    domain.aggregates.profile
+# 集約ルート経由の到達は設計どおり（ルートが内部を持つのは当然）なので無視する。
+# ここで見たいのは「直接 import して不変条件を迂回していないか」だけ。
+# config は DI の組立点なので同様に経路から除く。
+ignore_imports =
+    domain.aggregates.user_account -> domain.aggregates.profile
+    interfaces.** -> config.**
+
+# --- 6. Django Model は infrastructure の外へ出ない -------------------
 # Model がここから漏れると、ORM の都合が全層へ伝播する。
 [importlinter:contract:model-containment]
 name = Django Model は infrastructure 内に閉じ込める

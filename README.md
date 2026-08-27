@@ -76,12 +76,27 @@ curl -X POST localhost:8000/api/auth/sign-in \
 
 ## Django — DDD 構成
 
+Laravel 側（クリーンアーキテクチャ）と方向性は同じですが、**作法が違います**。
+DDD は「層を分けること」より**ドメインモデルの表現力**を重視するため、
+以下の戦術的パターンを、そのままディレクトリと型の名前として使います。
+
+| 概念 | 置き場所 | 定義 | 例 |
+|---|---|---|---|
+| **集約 / 集約ルート** | `domain/aggregates/` | **不変条件を守る単位**、**トランザクションの境界** | `UserAccount` + `Profile` |
+| **エンティティ** | `domain/entities/` | 同一性を持つ。値が変わっても ID が同じなら同じもの | `User` |
+| **値オブジェクト** | `domain/value_objects/` | 不変。等価性は値。不正な値は生成させない | `Email`, `DisplayName` |
+| **ドメインサービス** | `domain/services/` | 単一の集約に属さない業務ルール。状態を持たない | `EmailUniquenessService` |
+| **リポジトリ** | `domain/repositories/` | **集約ルート単位で 1 つ** | `UserRepository` |
+| **ドメインイベント** | 集約が保持 | 集約が起こした出来事 | `UserRegistered` |
+
 ```
 services/django-ddd/src/
 ├── domain/            # 依存ゼロ。Django すら import しない
+│   ├── aggregates/        # 集約ルート + 内部エンティティ（UserAccount, Profile）
 │   ├── entities/          # 同一性を持つ（User, HealthStatus）
-│   ├── value_objects/     # 不変・等価性は値（Email, UserId）
-│   ├── repositories/      # リポジトリ「契約」(ABC)。実装は置かない
+│   ├── value_objects/     # 不変・等価性は値（Email, UserId, DisplayName）
+│   ├── repositories/      # 集約ルート単位の「契約」(ABC)。実装は置かない
+│   ├── services/          # ドメインサービス（EmailUniquenessService）
 │   └── exceptions.py      # ドメイン例外（HTTPステータスを持ち込まない）
 │
 ├── application/       # ユースケース層。Django ORM を知らない
@@ -115,11 +130,11 @@ interfaces  →  application  →  domain
 ### この構成の実利
 
 ```bash
-$ pytest tests/domain tests/application
-20 passed in 0.02s
+$ pytest tests
+29 passed in 0.03s
 ```
 
-**DB もフレームワークも AWS も無しで、20 件のテストが 0.02 秒で終わります。**
+**DB もフレームワークも AWS も無しで、29 件のテストが 0.03 秒で終わります。**
 ドメインのテストに Django のセットアップが要らないのが、層を分けた見返りです。
 
 ### 主要な禁止事項
@@ -128,8 +143,21 @@ $ pytest tests/domain tests/application
 |---|---|
 | `domain/` から `django.*` を import | ドメインが Django を知った時点で、それはもうドメインではない |
 | `application/` から `infrastructure.*` を import | ユースケースは「何をするか」で、「どう保存するか」ではない |
-| Django Model を層をまたいで渡す | ORM の都合が全層へ伝播する。必ず DTO / エンティティへ変換する |
+| Django Model を層をまたいで渡す | ORM の都合が全層へ伝播する。必ず DTO / 集約へ変換する |
 | Dto に `fromModel()` を置く | Dto が Model に依存し、依存グラフの末端でなくなる |
+| 内部エンティティ（`Profile`）を集約の外から直接 import | ルートが守る不変条件を迂回できてしまう |
+| 内部エンティティ専用の Repository を作る | Repository は**集約ルート単位で 1 つ** |
+| 集約の不変条件を UseCase の `if` で書く | ドメインが貧血症になる。規則は集約が持つ |
+
+### 集約とドメインサービスの使い分け
+
+| 判定に必要なもの | 置き場所 | 例 |
+|---|---|---|
+| その集約 1 つだけで判定できる | **集約のメソッド** | 無効なアカウントは変更不可 |
+| 他の集約との関係で決まる | **ドメインサービス** | メールアドレスの重複チェック |
+
+重複チェックを無理にエンティティのメソッドにすると、
+エンティティが自分以外の集約を知ることになり、集約の境界が壊れます。
 
 ## Laravel — クリーンアーキテクチャ構成
 

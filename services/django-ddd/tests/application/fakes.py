@@ -11,7 +11,7 @@ from application.ports.authenticator import (
     VerifiedIdentity,
 )
 from application.ports.health_probe import HealthProbePort
-from domain.entities.user import User
+from domain.aggregates.user_account import UserAccount
 from domain.exceptions import AuthenticationFailedError
 from domain.repositories.user_repository import UserRepository
 from domain.value_objects.email import Email
@@ -44,20 +44,25 @@ class FakeAuthenticator(AuthenticatorPort):
 
 
 class InMemoryUserRepository(UserRepository):
-    def __init__(self, users: list[User] | None = None) -> None:
-        self._store: dict[str, User] = {str(u.id): u for u in (users or [])}
+    """集約ルート単位で出し入れする。DDD の Repository は集約ごとに 1 つ。"""
 
-    def find_by_id(self, user_id: UserId) -> User | None:
+    def __init__(self, accounts: list[UserAccount] | None = None) -> None:
+        self._store: dict[str, UserAccount] = {
+            str(a.id): a for a in (accounts or [])
+        }
+
+    def find_by_id(self, user_id: UserId) -> UserAccount | None:
         return self._store.get(str(user_id))
 
-    def find_by_email(self, email: Email) -> User | None:
+    def find_by_email(self, email: Email) -> UserAccount | None:
         return next(
-            (u for u in self._store.values() if str(u.email) == str(email)), None
+            (a for a in self._store.values() if str(a.user.email) == str(email)),
+            None,
         )
 
-    def save(self, user: User) -> User:
-        self._store[str(user.id)] = user
-        return user
+    def save(self, account: UserAccount) -> UserAccount:
+        self._store[str(account.id)] = account
+        return account
 
 
 class StubProbe(HealthProbePort):

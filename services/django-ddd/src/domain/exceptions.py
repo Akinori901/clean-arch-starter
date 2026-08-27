@@ -19,9 +19,21 @@ class InvalidUserIdError(DomainError):
     pass
 
 
+class InvalidDisplayNameError(DomainError):
+    pass
+
+
+class ProfileRuleViolationError(DomainError):
+    """集約の不変条件に反する操作。"""
+
+
 class AuthenticationFailedError(DomainError):
     """認証情報が正しくない。"""
 
 
 class UserNotFoundError(DomainError):
     pass
+
+
+class EmailAlreadyTakenError(DomainError):
+    """メールアドレスが既に他のユーザーに使われている。"""

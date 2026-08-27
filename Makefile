@@ -14,6 +14,8 @@ help: ## このヘルプを表示
 ## ── 開発環境 ─────────────────────────────────────────────
 up: ## 全サービスを起動（初回は seed も実行すること）
 	$(DC) up -d
+	# バケット作成は冪等。ボリュームを消した後の起動でも確実に作られるようにする。
+	$(DC) up storage-init
 	@echo "  Django   : http://localhost:8000/api/health"
 	@echo "  Laravel  : http://localhost:8001/api/health"
 	@echo "  Frontend : http://localhost:5173"
