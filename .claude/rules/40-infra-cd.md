@@ -51,6 +51,11 @@
   信頼ポリシーの `sub` は `repo:<owner>/<repo>:*` 形式。
   （個人 AWS アカウントで数値 ID 形式が必要なケースあり → `docs/deploy.md` 参照）
 - **`main` push が本番デプロイのトリガー。** それ以外のブランチはデプロイしない。
+- **AWS の Secrets が未設定なら、デプロイ系ジョブはスキップする**（`gate` ジョブが判定）。
+  テンプレートを clone しただけの状態で CI が赤くなるのを避けるため。
+  デプロイするには以下を設定する:
+  `AWS_DEPLOY_ROLE_ARN` / `DB_HOST` / `DB_SECRET_ARN` / `VPC_SUBNET_IDS` / `LAMBDA_SG_ID`
+  なお `verify`（規約検証）は Secrets の有無にかかわらず常に実行する。
 - **デプロイ前に必ず `verify` ジョブを通す。** 層検証が落ちたらデプロイに進まない。
 - **フロントは配信後に CloudFront invalidation を打つ。** 打ち忘れると旧 JS が残る。
 - `terraform apply` は**必ず `plan` の結果を確認してから**。CI では自動 apply しない。

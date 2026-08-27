@@ -370,6 +370,18 @@ verify（層検証）→ backend（ECRへpush）→ infra（SAM deploy）→ fro
 
 AWS 認証は **OIDC のみ**。アクセスキーを GitHub Secrets に置きません。
 
+**Secrets が未設定の環境では、デプロイ系ジョブは自動的にスキップされます**
+（`verify` は常に実行されます）。clone しただけで CI が赤くならないようにするためです。
+実際にデプロイするには、以下を GitHub Secrets に設定してください。
+
+| Secret | 用途 |
+|---|---|
+| `AWS_DEPLOY_ROLE_ARN` | OIDC で引き受けるデプロイ用ロール |
+| `DB_HOST` | RDS のエンドポイント |
+| `DB_SECRET_ARN` | DB 認証情報の Secrets Manager ARN |
+| `VPC_SUBNET_IDS` | Lambda を置くサブネット |
+| `LAMBDA_SG_ID` | Lambda のセキュリティグループ |
+
 ## Terraform 指定の案件では
 
 本リポジトリの正は SAM ですが、案件によって Terraform 指定は多くあります。
