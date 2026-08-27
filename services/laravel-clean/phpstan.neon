@@ -1,0 +1,10 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 8
+    paths:
+        - app
+    # Service/UseCase は外部ライブラリに依存しないため、より厳しく検査できる
+    checkMissingIterableValueType: true
+    treatPhpDocTypesAsCertain: false

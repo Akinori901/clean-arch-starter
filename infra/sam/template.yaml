@@ -1,0 +1,240 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  clean-arch-starter — Django(DDD) / Laravel(クリーンアーキ) を Lambda に、
+  React を S3+CloudFront に配置する構成のサンプル。
+
+Parameters:
+  Env:
+    Type: String
+    AllowedValues: [dev, stg, prod]
+    Default: dev
+  DjangoImageUri:
+    Type: String
+    Description: ECR に push 済みの Django コンテナイメージ URI
+  LaravelImageUri:
+    Type: String
+    Description: ECR に push 済みの Laravel コンテナイメージ URI
+  DbHost:
+    Type: String
+    Description: RDS のエンドポイント（Terraform 側で作る場合は SSM から渡す）
+  DbSecretArn:
+    Type: String
+    Description: DB 認証情報を保持する Secrets Manager の ARN
+  VpcSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+  LambdaSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+
+Globals:
+  Function:
+    Timeout: 29          # API Gateway 側の上限が 29 秒。これ以上にしても意味がない
+    MemorySize: 1024     # Lambda の CPU はメモリに比例するため、512 より速く安いことが多い
+    Architectures: [arm64]  # Graviton。x86 比で約 20% 安い
+    Tracing: Active
+    Environment:
+      Variables:
+        ENV: !Ref Env
+        LOG_LEVEL: INFO
+
+Resources:
+  # ── 認証 ───────────────────────────────────────────────────
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub '${AWS::StackName}-users'
+      UsernameAttributes: [email]
+      AutoVerifiedAttributes: [email]
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 12
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+      # 誤削除でユーザー全消失を防ぐ。prod では必須。
+      DeletionProtection: ACTIVE
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: !Sub '${AWS::StackName}-web'
+      # SPA なのでクライアントシークレットを持たせない（隠せないため）
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      SupportedIdentityProviders: [COGNITO]
+      AllowedOAuthFlows: [code]           # implicit は使わない（トークンが URL に載る）
+      AllowedOAuthScopes: [openid, email, profile]
+      AllowedOAuthFlowsUserPoolClient: true
+      CallbackURLs:
+        - !Sub 'https://${Distribution.DomainName}'
+      LogoutURLs:
+        - !Sub 'https://${Distribution.DomainName}'
+
+  # ── バックエンド（Lambda コンテナ）──────────────────────────
+  DjangoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      ImageUri: !Ref DjangoImageUri
+      VpcConfig:
+        SubnetIds: !Ref VpcSubnetIds
+        SecurityGroupIds: [!Ref LambdaSecurityGroupId]
+      Environment:
+        Variables:
+          DB_HOST: !Ref DbHost
+          DB_NAME: app
+          COGNITO_USER_POOL_ID: !Ref UserPool
+          COGNITO_CLIENT_ID: !Ref UserPoolClient
+          S3_BUCKET: !Ref AssetBucket
+          DJANGO_ALLOWED_HOSTS: '*'
+      Policies:
+        - AWSSecretsManagerGetSecretValuePolicy: { SecretArn: !Ref DbSecretArn }
+        - S3CrudPolicy: { BucketName: !Ref AssetBucket }
+        # ヘルスチェックの DescribeUserPool に必要な最小権限
+        - Statement:
+            - Effect: Allow
+              Action: [cognito-idp:DescribeUserPool]
+              Resource: !GetAtt UserPool.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/{proxy+}
+            Method: ANY
+
+  LaravelFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      ImageUri: !Ref LaravelImageUri
+      VpcConfig:
+        SubnetIds: !Ref VpcSubnetIds
+        SecurityGroupIds: [!Ref LambdaSecurityGroupId]
+      Environment:
+        Variables:
+          DB_HOST: !Ref DbHost
+          DB_DATABASE: app
+          COGNITO_USER_POOL_ID: !Ref UserPool
+          COGNITO_CLIENT_ID: !Ref UserPoolClient
+          S3_BUCKET: !Ref AssetBucket
+          # Lambda は /tmp 以外書き込み不可。これを忘れると本番でだけ 500 になる。
+          APP_STORAGE: /tmp
+      Policies:
+        - AWSSecretsManagerGetSecretValuePolicy: { SecretArn: !Ref DbSecretArn }
+        - S3CrudPolicy: { BucketName: !Ref AssetBucket }
+        - Statement:
+            - Effect: Allow
+              Action: [cognito-idp:DescribeUserPool]
+              Resource: !GetAtt UserPool.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /laravel/{proxy+}
+            Method: ANY
+
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref Env
+      CorsConfiguration:
+        AllowOrigins: [!Sub 'https://${Distribution.DomainName}']
+        AllowHeaders: [Content-Type, Authorization]
+        AllowMethods: [GET, POST, PUT, DELETE, OPTIONS]
+
+  # ── フロント（S3 + CloudFront）──────────────────────────────
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      # CloudFront(OAC) 経由のみで配信する。バケットは非公開のまま。
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+
+  AssetBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+
+  OriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub '${AWS::StackName}-oac'
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal: { Service: cloudfront.amazonaws.com }
+            Action: s3:GetObject
+            Resource: !Sub '${FrontendBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}'
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        Origins:
+          - Id: s3-frontend
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            S3OriginConfig: {}
+            OriginAccessControlId: !GetAtt OriginAccessControl.Id
+        DefaultCacheBehavior:
+          TargetOriginId: s3-frontend
+          ViewerProtocolPolicy: redirect-to-https
+          # CachingOptimized（AWS マネージド）
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          Compress: true
+        # SPA のクライアントサイドルーティング対応。
+        # /users/1 のような実体の無いパスへ直接アクセスされたとき、
+        # S3 は 403/404 を返すため index.html へ寄せる。
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+
+Outputs:
+  ApiUrl:
+    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${Env}'
+  FrontendUrl:
+    Value: !Sub 'https://${Distribution.DomainName}'
+  FrontendBucketName:
+    Value: !Ref FrontendBucket
+  DistributionId:
+    Value: !Ref Distribution
+  UserPoolId:
+    Value: !Ref UserPool
+  UserPoolClientId:
+    Value: !Ref UserPoolClient

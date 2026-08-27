@@ -1,0 +1,8 @@
+-r requirements.txt
+import-linter==2.3
+ruff==0.12.8
+mypy==1.17.1
+pytest==8.4.1
+pytest-django==4.11.1
+django-stubs==5.2.2
+djangorestframework-stubs==3.16.1

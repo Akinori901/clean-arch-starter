@@ -1,0 +1,43 @@
+{
+    "name": "qol/laravel-clean",
+    "type": "project",
+    "description": "クリーンアーキテクチャ構成の Laravel サンプル（Cognito 認証 + ヘルスチェック）",
+    "require": {
+        "php": "^8.3",
+        "laravel/framework": "^13.0",
+        "aws/aws-sdk-php": "^3.350",
+        "firebase/php-jwt": "^7.1",
+        "bref/bref": "^3.0",
+        "bref/laravel-bridge": "^3.0"
+    },
+    "require-dev": {
+        "deptrac/deptrac": "^2.0",
+        "phpstan/phpstan": "^2.1",
+        "larastan/larastan": "^3.0",
+        "laravel/pint": "^1.18",
+        "phpunit/phpunit": "^11.5",
+        "mockery/mockery": "^1.6"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "verify:layers": "deptrac analyse --config-file=depfile.yaml",
+        "verify:static": "phpstan analyse",
+        "verify": ["@verify:layers", "@verify:static", "phpunit"]
+    },
+    "config": {
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

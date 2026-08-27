@@ -1,0 +1,20 @@
+{
+  "Clients": {
+    "9ncdhsha2wpn6eoxiyhvtb61j": {
+      "ClientId": "9ncdhsha2wpn6eoxiyhvtb61j",
+      "ClientName": "local-client",
+      "CreationDate": "2026-08-26T23:56:33.562Z",
+      "ExplicitAuthFlows": [
+        "ALLOW_USER_PASSWORD_AUTH",
+        "ALLOW_REFRESH_TOKEN_AUTH"
+      ],
+      "LastModifiedDate": "2026-08-26T23:56:33.562Z",
+      "TokenValidityUnits": {
+        "AccessToken": "hours",
+        "IdToken": "minutes",
+        "RefreshToken": "days"
+      },
+      "UserPoolId": "local_1N3DflKN"
+    }
+  }
+}

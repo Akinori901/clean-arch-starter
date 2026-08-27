@@ -1,0 +1,282 @@
+{
+  "Users": {
+    "2ed9dda5-e6d5-4471-859d-2aad53480ea2": {
+      "Username": "2ed9dda5-e6d5-4471-859d-2aad53480ea2",
+      "Password": "Passw0rd!",
+      "Attributes": [
+        {
+          "Name": "email",
+          "Value": "taro@example.com"
+        },
+        {
+          "Name": "email_verified",
+          "Value": "true"
+        },
+        {
+          "Name": "sub",
+          "Value": "2ed9dda5-e6d5-4471-859d-2aad53480ea2"
+        }
+      ],
+      "Enabled": true,
+      "UserStatus": "CONFIRMED",
+      "UserCreateDate": "2026-08-26T23:56:35.172Z",
+      "UserLastModifiedDate": "2026-08-26T23:56:35.989Z",
+      "RefreshTokens": [
+        "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJjb2duaXRvOnVzZXJuYW1lIjoiMmVkOWRkYTUtZTZkNS00NDcxLTg1OWQtMmFhZDUzNDgwZWEyIiwiZW1haWwiOiJ0YXJvQGV4YW1wbGUuY29tIiwiaWF0IjoxNzg3Nzg4NjIzLCJqdGkiOiJhZmQ0MzIyOS05M2U5LTQ4NmMtODE2OS1jZDllMzJkNzkyZjYiLCJleHAiOjE3ODgzOTM0MjMsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6OTIyOS9sb2NhbF8xTjNEZmxLTiJ9.NvA9Nt3QCsNorbPcnQzYfopEOBLMaliGRJT8R5wK_5LHVi6FpdHEnBo2a12yPB17S30u2knRQDXXzK-4zBqNzulYQQ_BOUkvOI2lK9uhVUK1pmvB3v3c2rqgqgN6orgvBads5uVVTHK0UC3X_eXZx9alYLvViVckoZNOb0z5xa60m-PI8Rzo-KUYk_Dtu9t9jH1Q6JouFEP8bl2xXsw3Ux13Ea8h-dCvVCJiRgel1VvMy6JU_WZhOo7CQNIlmtZMhZI1F__6CPf443OSkzgbI-Dnzsooh88L4vqqGBfo8amkNLzcT5qnsgz0jd5cwZtc3VI9wysQ_7O3FyJX4XfoRA",
+        "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJjb2duaXRvOnVzZXJuYW1lIjoiMmVkOWRkYTUtZTZkNS00NDcxLTg1OWQtMmFhZDUzNDgwZWEyIiwiZW1haWwiOiJ0YXJvQGV4YW1wbGUuY29tIiwiaWF0IjoxNzg3Nzg4NjMwLCJqdGkiOiJjMzcwNjFmZi00YjkwLTRmYjItYTdhMi0zM2U3ODk5ODllN2QiLCJleHAiOjE3ODgzOTM0MzAsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6OTIyOS9sb2NhbF8xTjNEZmxLTiJ9.jQxYSCqr1ngl6gBqOz0p8beBjznOBiAiRdY33lP75X3xao4b17A8ohOPnPt7awEhY9zOqdm5eBaiJjq_zFhtBfCQK73CJUHZgLQARzQHdiz1onqnXMI-aGjkJj7FqnpgWlTJGygPndB1mVaOBrvYryQsuivgFTtI-0vi0vfD67VD1OCg3xLwCKF5UIkLCaIOIzjnI5FRttxOGXtex1djxJ03DN1kBC6cSYYej7CygWGYFV852pOD1Dn9Tfbcqfn_McYAgEPX-4izIlJ27SNSILkFCwOR8ScMqPpnPxjjZr_C6Szpyr-I0ZvCxZTjqldcJ-eZa2YZ62wIAbwjMhMlJA",
+        "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJjb2duaXRvOnVzZXJuYW1lIjoiMmVkOWRkYTUtZTZkNS00NDcxLTg1OWQtMmFhZDUzNDgwZWEyIiwiZW1haWwiOiJ0YXJvQGV4YW1wbGUuY29tIiwiaWF0IjoxNzg3Nzg4NjQ1LCJqdGkiOiJlZWFjYmQ2Ny0zYzMwLTRkYTYtYjM4ZS0xOWQ4MDMwYmQ0M2YiLCJleHAiOjE3ODgzOTM0NDUsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6OTIyOS9sb2NhbF8xTjNEZmxLTiJ9.gYAQzrPzVVpkpLgL05od0LRsHLvqMFWRaNjD9AR7-5_n_ghYSe6RtoeKNB_4iVyycqdiC6RJmA3_hkxcjf_Dnb5ChN6MXV2utKqE_hslZ-s8terGCcu30bUEPcbRFv1VetfM7GdrQ7gh-K3R6Q0y6dlkyaLstNseFF39jEiu88eTGwKy25Z7i09ZeK7TeDeeA_2hLdf1wdLKMAHUZVpZ6z42jfOYI3UxG3PiL7CYngHakun8T4AL1w4KfoYSbZOXgSuvGyTpj34mBzTWkzPRJspifvmTQpsnmjZLFRBHVVFXFvjXIVnwfAZPw49UG5iIpxldxSP5CFOYTKsKXB7hHg",
+        "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJjb2duaXRvOnVzZXJuYW1lIjoiMmVkOWRkYTUtZTZkNS00NDcxLTg1OWQtMmFhZDUzNDgwZWEyIiwiZW1haWwiOiJ0YXJvQGV4YW1wbGUuY29tIiwiaWF0IjoxNzg3Nzg4Njg1LCJqdGkiOiI3ZDBkNjYxYS03OWRjLTQ5NDAtYWEzYy0yOWExMzA5NDU2MWMiLCJleHAiOjE3ODgzOTM0ODUsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6OTIyOS9sb2NhbF8xTjNEZmxLTiJ9.rXCW2IZC5vqYBQeva3KGHbuIk3g0PGf9s_2GLnh7l1DAPNlpxsOiS7FQFMxTxMcq2faxtDUv3uW0J5jB0lkH-jlAJc7P1JlM35sSUOc6BZUkIky1ZucOywbBEbbDrRGlu0w3PIlCciz5YB87plwLbC8r5pG-48TcAroCz2KyFl_wf-6xfjdAKuYZt0QddWjZO3PrSJd9NmSNIm-8sjpILbt5PXSMluPd5WjVrkf4PFfuPolxJnPCgN8DHWimH5S0bnVr_6sFN6xN4abvJUhuM8UsdHawDXwp1XimzWG_iXxF1Mb-OQZ7bX3T0erDfPnGKusj-rZzUYjc5XyYswAxsg",
+        "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJjb2duaXRvOnVzZXJuYW1lIjoiMmVkOWRkYTUtZTZkNS00NDcxLTg1OWQtMmFhZDUzNDgwZWEyIiwiZW1haWwiOiJ0YXJvQGV4YW1wbGUuY29tIiwiaWF0IjoxNzg3Nzg4Njk3LCJqdGkiOiIxNWZmZjQ4NC02YjljLTQzNWQtODE1OS03Njc4ZDE3MGQyZmEiLCJleHAiOjE3ODgzOTM0OTcsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6OTIyOS9sb2NhbF8xTjNEZmxLTiJ9.lV-2OS__k8Qtfo6B1FpJTvLw7tnse8YLXW8VBod-LoUle0euXiTOyGoUmuAW31FPmrt-5T_KBLnBh-IcSKbU6WqX03ZqcYGnFGe51lHUZ2EzkjG99B6xl-3Sa_5X-UT7UChgVcLNDJ4cjaU4TDc36WFzCpzC-uQUHin72R-NCPvD6e5xgFDLRYUD9pjJosgj5w5YqsS6_ITRXqw7IoXKmFiGzInZWikDsbi5em8ute_bATxh_XE1SgAQ3TGUxFbTD7kkks5Ks7t6-8gPkfR8FpnGKw2zOUa3e7JKdsKnpMcSQkswgvFK6zydaXoEoRY03-36KEOMLuruO9lmpi4iZg",
+        "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJjb2duaXRvOnVzZXJuYW1lIjoiMmVkOWRkYTUtZTZkNS00NDcxLTg1OWQtMmFhZDUzNDgwZWEyIiwiZW1haWwiOiJ0YXJvQGV4YW1wbGUuY29tIiwiaWF0IjoxNzg3Nzg4NzMwLCJqdGkiOiJjYjA5OTdlZS01MTg2LTRiYmItYjNjNi01OTliODFmMThmMWUiLCJleHAiOjE3ODgzOTM1MzAsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6OTIyOS9sb2NhbF8xTjNEZmxLTiJ9.tJfBqSs8-NgdQ-CNwzvg3CclSl1UaDSLXMlDsPySTbP12dgffd9Bh18kvoWmpXfmczSgrsG2UMFS6eagRmc6NtWxRCGYUK78MxRuv9Gls-c0FA3hO-CwYBbP5Z8lMQ3qOyDfz_soQVGWlrSQCXf4ySqNP6rEfDi9qzVHglLuEKMeyikn3PCJazNyuxatbjbyr1JP65QfMnNVpI2DMQ8ldayZasJbgC1Yc6YFAQ6VfO7W-N454VoIdC78pffkOqVmQZsET3zFWwzBFjCYa5CD7H8wLL1SSiEK6IY3wMYsZA43YxX2b-euzQ_7y4MjLp4pNJC3QsrvyayJom-LzgpdgQ",
+        "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJjb2duaXRvOnVzZXJuYW1lIjoiMmVkOWRkYTUtZTZkNS00NDcxLTg1OWQtMmFhZDUzNDgwZWEyIiwiZW1haWwiOiJ0YXJvQGV4YW1wbGUuY29tIiwiaWF0IjoxNzg3Nzg4NzQ1LCJqdGkiOiI3M2RkNDc3NC01ZGY5LTQzNWMtYWQyNS1lMTljMjEzMDc0OTciLCJleHAiOjE3ODgzOTM1NDUsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6OTIyOS9sb2NhbF8xTjNEZmxLTiJ9.0Swpa-NsBDUHKANe29w84j0o6N9x-LWEgLEEDg_lk5REzn2x0QZ4g_ujsOsEEHwXpdbuJYgMaCrzsYXVetLUxser1pImMmlhH4W-0fkqgEwOBgpubmvUjxIW3uEsvrutwxdFEEK_74BW-YOF7I4_JPqBdZpHkO2e-VJPummJUJzIE6yoiRKpzYOheTZS91DsT94_ZEdLajxhe6f7xs4igm2OHfXWF_qJ1k40Cc4gP_eP4kmvWpU612VUklAakCA-S5Pp0h_JgJGqknF2Dz6MXIiyYwkeAhbZwDDVJPkGayC4WDvoC3qrjY3_t3s3NHl9DeeA4cLinvU2FgC95r1n9w",
+        "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJjb2duaXRvOnVzZXJuYW1lIjoiMmVkOWRkYTUtZTZkNS00NDcxLTg1OWQtMmFhZDUzNDgwZWEyIiwiZW1haWwiOiJ0YXJvQGV4YW1wbGUuY29tIiwiaWF0IjoxNzg3Nzg4NzQ1LCJqdGkiOiI2ZDA3M2U2OC1mNTUwLTQyMTgtYmY3Yy0yOTc1M2YzM2RhZmEiLCJleHAiOjE3ODgzOTM1NDUsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6OTIyOS9sb2NhbF8xTjNEZmxLTiJ9.hBGuvwfYMh5yprbXXN-Zfn6a4ObnnKxgCMdbKLq49o7OKipnzZpurV7iVc7dWLQSgv5Mvi-Oc06o-zCjcDgvx4T6YFRrH-ezAA3SMnk5oIu8dAOqTBPXWf3FcFYHtLOd3Mi6Bu-AT848henIUSYsvt2TPave28MKFJhYRdsy7Wko5Tt8ssr5n4xCncVYVYJlT0gFGW2W3H0wT5HZZxrgQeEfarbVxRDkQ7g3T0pCf7fc1nivWS6mEKE77E7tGIzs-37_jUIAGOMyAvMONgcA2smu2rdX38nU5itsQNmM9i88kzvdwutY_wZOIZrGCeteanuNPQcnzcfiVppYaJgUkg"
+      ]
+    }
+  },
+  "Options": {
+    "Policies": {
+      "PasswordPolicy": {
+        "MinimumLength": 8,
+        "RequireUppercase": true,
+        "RequireLowercase": true,
+        "RequireNumbers": true,
+        "RequireSymbols": true,
+        "TemporaryPasswordValidityDays": 7
+      }
+    },
+    "LambdaConfig": {},
+    "SchemaAttributes": [
+      {
+        "Name": "sub",
+        "AttributeDataType": "String",
+        "DeveloperOnlyAttribute": false,
+        "Mutable": false,
+        "Required": true,
+        "StringAttributeConstraints": {
+          "MinLength": "1",
+          "MaxLength": "2048"
+        }
+      },
+      {
+        "Name": "name",
+        "AttributeDataType": "String",
+        "DeveloperOnlyAttribute": false,
+        "Mutable": true,
+        "Required": false,
+        "StringAttributeConstraints": {
+          "MinLength": "0",
+          "MaxLength": "2048"
+        }
+      },
+      {
+        "Name": "given_name",
+        "AttributeDataType": "String",
+        "DeveloperOnlyAttribute": false,
+        "Mutable": true,
+        "Required": false,
+        "StringAttributeConstraints": {
+          "MinLength": "0",
+          "MaxLength": "2048"
+        }
+      },
+      {
+        "Name": "family_name",
+        "AttributeDataType": "String",
+        "DeveloperOnlyAttribute": false,
+        "Mutable": true,
+        "Required": false,
+        "StringAttributeConstraints": {
+          "MinLength": "0",
+          "MaxLength": "2048"
+        }
+      },
+      {
+        "Name": "middle_name",
+        "AttributeDataType": "String",
+        "DeveloperOnlyAttribute": false,
+        "Mutable": true,
+        "Required": false,
+        "StringAttributeConstraints": {
+          "MinLength": "0",
+          "MaxLength": "2048"
+        }
+      },
+      {
+        "Name": "nickname",
+        "AttributeDataType": "String",
+        "DeveloperOnlyAttribute": false,
+        "Mutable": true,
+        "Required": false,
+        "StringAttributeConstraints": {
+          "MinLength": "0",
+          "MaxLength": "2048"
+        }
+      },
+      {
+        "Name": "preferred_username",
+        "AttributeDataType": "String",
+        "DeveloperOnlyAttribute": false,
+        "Mutable": true,
+        "Required": false,
+        "StringAttributeConstraints": {
+          "MinLength": "0",
+          "MaxLength": "2048"
+        }
+      },
+      {
+        "Name": "profile",
+        "AttributeDataType": "String",
+        "DeveloperOnlyAttribute": false,
+        "Mutable": true,
+        "Required": false,
+        "StringAttributeConstraints": {
+          "MinLength": "0",
+          "MaxLength": "2048"
+        }
+      },
+      {
+        "Name": "picture",
+        "AttributeDataType": "String",
+        "DeveloperOnlyAttribute": false,
+        "Mutable": true,
+        "Required": false,
+        "StringAttributeConstraints": {
+          "MinLength": "0",
+          "MaxLength": "2048"
+        }
+      },
+      {
+        "Name": "website",
+        "AttributeDataType": "String",
+        "DeveloperOnlyAttribute": false,
+        "Mutable": true,
+        "Required": false,
+        "StringAttributeConstraints": {
+          "MinLength": "0",
+          "MaxLength": "2048"
+        }
+      },
+      {
+        "Name": "email",
+        "AttributeDataType": "String",
+        "DeveloperOnlyAttribute": false,
+        "Mutable": true,
+        "Required": false,
+        "StringAttributeConstraints": {
+          "MinLength": "0",
+          "MaxLength": "2048"
+        }
+      },
+      {
+        "Name": "email_verified",
+        "AttributeDataType": "Boolean",
+        "DeveloperOnlyAttribute": false,
+        "Mutable": true,
+        "Required": false
+      },
+      {
+        "Name": "gender",
+        "AttributeDataType": "String",
+        "DeveloperOnlyAttribute": false,
+        "Mutable": true,
+        "Required": false,
+        "StringAttributeConstraints": {
+          "MinLength": "0",
+          "MaxLength": "2048"
+        }
+      },
+      {
+        "Name": "birthdate",
+        "AttributeDataType": "String",
+        "DeveloperOnlyAttribute": false,
+        "Mutable": true,
+        "Required": false,
+        "StringAttributeConstraints": {
+          "MinLength": "10",
+          "MaxLength": "10"
+        }
+      },
+      {
+        "Name": "zoneinfo",
+        "AttributeDataType": "String",
+        "DeveloperOnlyAttribute": false,
+        "Mutable": true,
+        "Required": false,
+        "StringAttributeConstraints": {
+          "MinLength": "0",
+          "MaxLength": "2048"
+        }
+      },
+      {
+        "Name": "locale",
+        "AttributeDataType": "String",
+        "DeveloperOnlyAttribute": false,
+        "Mutable": true,
+        "Required": false,
+        "StringAttributeConstraints": {
+          "MinLength": "0",
+          "MaxLength": "2048"
+        }
+      },
+      {
+        "Name": "phone_number",
+        "AttributeDataType": "String",
+        "DeveloperOnlyAttribute": false,
+        "Mutable": true,
+        "Required": false,
+        "StringAttributeConstraints": {
+          "MinLength": "0",
+          "MaxLength": "2048"
+        }
+      },
+      {
+        "Name": "phone_number_verified",
+        "AttributeDataType": "Boolean",
+        "DeveloperOnlyAttribute": false,
+        "Mutable": true,
+        "Required": false
+      },
+      {
+        "Name": "address",
+        "AttributeDataType": "String",
+        "DeveloperOnlyAttribute": false,
+        "Mutable": true,
+        "Required": false,
+        "StringAttributeConstraints": {
+          "MinLength": "0",
+          "MaxLength": "2048"
+        }
+      },
+      {
+        "Name": "updated_at",
+        "AttributeDataType": "Number",
+        "DeveloperOnlyAttribute": false,
+        "Mutable": true,
+        "Required": false,
+        "NumberAttributeConstraints": {
+          "MinValue": "0"
+        }
+      }
+    ],
+    "VerificationMessageTemplate": {
+      "DefaultEmailOption": "CONFIRM_WITH_CODE"
+    },
+    "MfaConfiguration": "OFF",
+    "EstimatedNumberOfUsers": 0,
+    "EmailConfiguration": {
+      "EmailSendingAccount": "COGNITO_DEFAULT"
+    },
+    "AdminCreateUserConfig": {
+      "AllowAdminCreateUserOnly": false,
+      "UnusedAccountValidityDays": 7
+    },
+    "UsernameAttributes": [
+      "email"
+    ],
+    "Arn": "arn:aws:cognito-idp:local:local:userpool/local_1N3DflKN",
+    "CreationDate": "2026-08-26T23:56:32.054Z",
+    "Id": "local_1N3DflKN",
+    "LastModifiedDate": "2026-08-26T23:56:32.054Z",
+    "Name": "local_pool"
+  }
+}

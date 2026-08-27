@@ -1,0 +1,46 @@
+# 秘密情報は絶対にコミットしない。
+# .env は .env.example のみ追跡する。
+.env
+.env.*
+!.env.example
+
+# 鍵・証明書の類は拡張子ごと弾く
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+*.ppk
+
+# 依存
+node_modules/
+vendor/
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+
+# ビルド成果物
+dist/
+build/
+*.egg-info/
+
+# ツールのキャッシュ
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.phpunit.result.cache
+.phpstan.cache/
+
+# IaC
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+tfplan
+.aws-sam/
+
+# OS / エディタ
+.DS_Store
+.idea/
+*.swp

@@ -1,0 +1,190 @@
+# CD の原型。
+#
+# 原則:
+#   1. verify が通らなければデプロイしない（needs）
+#   2. AWS 認証は OIDC のみ。アクセスキーを Secrets に置かない
+#   3. main への push だけが本番デプロイのトリガー
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      env:
+        description: デプロイ先環境
+        type: choice
+        options: [dev, stg, prod]
+        default: dev
+
+# OIDC でロールを引き受けるために id-token: write が要る。
+# これが無いと「Credentials could not be loaded」で落ちる。
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-northeast-1
+  STACK_NAME: clean-arch-starter
+
+jobs:
+  # デプロイ前に必ず層検証を通す。ここが落ちたら以降は動かない。
+  verify:
+    uses: ./.github/workflows/verify.yml
+
+  backend:
+    name: バックエンド（Lambda コンテナ）
+    needs: verify
+    runs-on: ubuntu-latest
+    outputs:
+      django-image: ${{ steps.build.outputs.django-image }}
+      laravel-image: ${{ steps.build.outputs.laravel-image }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: AWS 認証（OIDC）
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: イメージのビルドと push
+        id: build
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          # タグに commit SHA を使う。latest だと「今動いているのがどれか」が
+          # 追えなくなり、ロールバックもできない。
+          TAG: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          DJANGO="$REGISTRY/${STACK_NAME}-django:$TAG"
+          LARAVEL="$REGISTRY/${STACK_NAME}-laravel:$TAG"
+
+          # Lambda は arm64（Graviton）で動かすため、そのプラットフォームで焼く。
+          # ここを揃えないと "exec format error" で起動しない。
+          docker buildx build --platform linux/arm64 --provenance=false \
+            -f docker/django/Dockerfile --target lambda \
+            -t "$DJANGO" --push services/django-ddd
+
+          docker buildx build --platform linux/arm64 --provenance=false \
+            -f docker/laravel/Dockerfile --target lambda \
+            -t "$LARAVEL" --push services/laravel-clean
+
+          echo "django-image=$DJANGO"  >> "$GITHUB_OUTPUT"
+          echo "laravel-image=$LARAVEL" >> "$GITHUB_OUTPUT"
+
+  infra:
+    name: SAM デプロイ
+    needs: backend
+    runs-on: ubuntu-latest
+    outputs:
+      bucket: ${{ steps.out.outputs.bucket }}
+      distribution: ${{ steps.out.outputs.distribution }}
+      api-url: ${{ steps.out.outputs.api-url }}
+      user-pool-id: ${{ steps.out.outputs.user-pool-id }}
+      client-id: ${{ steps.out.outputs.client-id }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      - name: デプロイ
+        env:
+          ENV_NAME: ${{ inputs.env || 'dev' }}
+        run: |
+          set -euo pipefail
+          sam deploy \
+            --template-file infra/sam/template.yaml \
+            --stack-name "${STACK_NAME}-${ENV_NAME}" \
+            --capabilities CAPABILITY_IAM \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --resolve-s3 \
+            --parameter-overrides \
+              Env="$ENV_NAME" \
+              DjangoImageUri="${{ needs.backend.outputs.django-image }}" \
+              LaravelImageUri="${{ needs.backend.outputs.laravel-image }}" \
+              DbHost="${{ secrets.DB_HOST }}" \
+              DbSecretArn="${{ secrets.DB_SECRET_ARN }}" \
+              VpcSubnetIds="${{ secrets.VPC_SUBNET_IDS }}" \
+              LambdaSecurityGroupId="${{ secrets.LAMBDA_SG_ID }}"
+
+      - id: out
+        name: スタック出力の取り出し
+        env:
+          ENV_NAME: ${{ inputs.env || 'dev' }}
+        run: |
+          set -euo pipefail
+          get() {
+            aws cloudformation describe-stacks \
+              --stack-name "${STACK_NAME}-${ENV_NAME}" \
+              --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text
+          }
+          {
+            echo "bucket=$(get FrontendBucketName)"
+            echo "distribution=$(get DistributionId)"
+            echo "api-url=$(get ApiUrl)"
+            echo "user-pool-id=$(get UserPoolId)"
+            echo "client-id=$(get UserPoolClientId)"
+          } >> "$GITHUB_OUTPUT"
+
+  frontend:
+    name: フロント（S3 + CloudFront）
+    needs: infra
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: services/frontend-react/package-lock.json
+
+      - run: npm ci
+        working-directory: services/frontend-react
+
+      - name: ビルド
+        working-directory: services/frontend-react
+        # VITE_* はビルド時に埋め込まれる。実行時に差し替えられないため、
+        # 環境ごとにビルドし直す必要がある。
+        env:
+          VITE_API_BASE_URL: ${{ needs.infra.outputs.api-url }}
+          VITE_COGNITO_AUTHORITY: https://cognito-idp.ap-northeast-1.amazonaws.com/${{ needs.infra.outputs.user-pool-id }}
+          VITE_COGNITO_CLIENT_ID: ${{ needs.infra.outputs.client-id }}
+          VITE_COGNITO_REDIRECT_URI: https://${{ needs.infra.outputs.distribution }}.cloudfront.net
+        run: npm run build
+
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: S3 へ同期
+        working-directory: services/frontend-react
+        run: |
+          set -euo pipefail
+          # ハッシュ付きアセットは長期キャッシュ。immutable なので安全。
+          aws s3 sync dist/ "s3://${{ needs.infra.outputs.bucket }}/" \
+            --delete --cache-control 'public,max-age=31536000,immutable' \
+            --exclude index.html
+          # index.html だけは常に取り直させる。ここをキャッシュすると
+          # 新しい JS を指す HTML が配られず、デプロイが反映されない。
+          aws s3 cp dist/index.html "s3://${{ needs.infra.outputs.bucket }}/index.html" \
+            --cache-control 'no-cache,no-store,must-revalidate'
+
+      - name: CloudFront キャッシュ削除
+        # 打ち忘れるとエッジに旧 index.html が残り続ける
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ needs.infra.outputs.distribution }}" \
+            --paths '/index.html' '/'

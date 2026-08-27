@@ -1,0 +1,94 @@
+# Django DDD 層依存チェック（import-linter）
+#
+# .claude/rules/10-django-ddd.md の依存表を、そのまま機械検知できる形にしたもの。
+# 規約を文章で配るだけでは守られない。CI で落ちる形にして初めてルールになる。
+#
+# 使い方:
+#   pip install import-linter
+#   lint-imports --config .importlinter
+
+[importlinter]
+root_packages =
+    domain
+    application
+    infrastructure
+    interfaces
+    config
+include_external_packages = True
+
+# --- 1. 層の依存方向 -------------------------------------------------
+# 上にあるものが下にあるものを import してよい。逆は許さない。
+[importlinter:contract:layers]
+name = DDD 層の依存方向（内側へのみ向かう）
+type = layers
+layers =
+    interfaces
+    application
+    domain
+# infrastructure は依存性逆転により domain を実装する側なので
+# この直線的な層順には含めず、下の forbidden 契約で個別に縛る。
+
+# --- 2. domain は何にも依存しない ------------------------------------
+# ドメインが Django を知った時点で、それはもうドメインではない。
+[importlinter:contract:domain-purity]
+name = domain は外部技術に依存しない
+type = forbidden
+source_modules =
+    domain
+forbidden_modules =
+    django
+    rest_framework
+    boto3
+    botocore
+    application
+    infrastructure
+    interfaces
+    config
+
+# --- 3. application は Django / 具象実装を知らない --------------------
+# ユースケースは「何をするか」であって「どう保存するか」ではない。
+[importlinter:contract:application-purity]
+name = application は Django と infrastructure に依存しない
+type = forbidden
+source_modules =
+    application
+forbidden_modules =
+    django
+    rest_framework
+    boto3
+    botocore
+    infrastructure
+    interfaces
+    config
+
+# --- 4. interfaces は infrastructure を直接触らない -------------------
+# View が具象リポジトリを直接 new した時点で DI が壊れる。
+# 依存は config/ の組立を通じて注入される。
+[importlinter:contract:interfaces-no-infra]
+name = interfaces は infrastructure を直接 import しない
+type = forbidden
+source_modules =
+    interfaces
+forbidden_modules =
+    infrastructure
+# config は DI の組立点であり、具象を結線してよい唯一の場所。
+# View が config.container 経由で具象を受け取るのは設計どおりなので、
+# 経路上の config を無視して「直接 import しているか」だけを見る。
+# ここを緩めているぶん、config 自身は小さく保つこと（結線以外を書かない）。
+ignore_imports =
+    interfaces.** -> config.**
+
+# --- 5. Django Model は infrastructure の外へ出ない -------------------
+# Model がここから漏れると、ORM の都合が全層へ伝播する。
+[importlinter:contract:model-containment]
+name = Django Model は infrastructure 内に閉じ込める
+type = forbidden
+source_modules =
+    domain
+    application
+    interfaces
+forbidden_modules =
+    infrastructure.django_orm.models
+# 同上。config 経由の間接依存は DI の結果であって層違反ではない。
+ignore_imports =
+    interfaces.** -> config.**

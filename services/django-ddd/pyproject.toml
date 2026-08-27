@@ -1,0 +1,32 @@
+[tool.ruff]
+line-length = 100
+src = ["src"]
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "TID"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+# 層をまたぐ相対 import を禁止する。
+# `from ...domain import` のような書き方は層の境界を曖昧にする。
+ban-relative-imports = "all"
+
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "src"
+plugins = ["mypy_django_plugin.main"]
+strict = true
+warn_return_any = true
+disallow_untyped_defs = true
+# domain/application は外部ライブラリに依存しないため、より厳しくできる
+[[tool.mypy.overrides]]
+module = ["domain.*", "application.*"]
+disallow_any_explicit = true
+
+[tool.django-stubs]
+django_settings_module = "config.settings"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings"
+pythonpath = ["src"]
+testpaths = ["tests"]

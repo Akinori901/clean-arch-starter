@@ -1,0 +1,123 @@
+# 層の規約検証。
+#
+# ここが落ちたらデプロイへ進まない（deploy.yml が needs で待つ）。
+# 規約を文章で配るだけでは守られないため、CI で落ちる形にしてある。
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # deploy.yml から needs で呼ぶために必要。
+  # これが無いと "workflow was not found" で落ちる。
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  django:
+    name: Django (DDD 層検証)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/django-ddd
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: services/django-ddd/requirements-dev.txt
+
+      - name: 依存インストール
+        run: pip install -r requirements-dev.txt
+
+      # ── ここが本丸 ──
+      # 「domain が Django を import していないか」は型検査では落ちない。
+      # 層の依存方向を見る専用のツールが要る。
+      - name: 層の依存方向を検証（import-linter）
+        run: lint-imports --config .importlinter
+        working-directory: services/django-ddd/src
+
+      - name: 静的解析（ruff）
+        run: ruff check src tests
+
+      - name: 型検査（mypy）
+        run: mypy src
+
+      - name: テスト
+        run: pytest tests
+        env:
+          PYTHONPATH: src
+
+  laravel:
+    name: Laravel (クリーンアーキ層検証)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/laravel-clean
+    steps:
+      - uses: actions/checkout@v5
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_mysql, zip, intl, bcmath
+          coverage: none
+
+      - name: 依存インストール
+        run: composer install --no-interaction --prefer-dist
+
+      # PHPStan は型を見るが、層の依存方向は見ない。
+      # 「Service から Model を直接呼んでいないか」は deptrac の仕事。
+      - name: 層の依存方向を検証（deptrac）
+        run: ./vendor/bin/deptrac analyse --config-file=depfile.yaml --fail-on-uncovered
+
+      - name: 静的解析（PHPStan）
+        run: ./vendor/bin/phpstan analyse --no-progress
+
+      - name: テスト
+        run: ./vendor/bin/phpunit --testsuite Unit
+
+  frontend:
+    name: Frontend (境界検証)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/frontend-react
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: services/frontend-react/package-lock.json
+
+      - run: npm ci
+
+      # feature 間の相互参照・shared→feature の逆流を検知する
+      - name: 境界検証（eslint-plugin-boundaries）
+        run: npm run lint
+
+      - name: 型検査
+        run: npm run typecheck
+
+      - name: ビルド（S3 へ置く成果物が作れるか）
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: https://example.invalid
+          VITE_COGNITO_AUTHORITY: https://example.invalid
+          VITE_COGNITO_CLIENT_ID: dummy
+          VITE_COGNITO_REDIRECT_URI: https://example.invalid
+
+  infra:
+    name: IaC 検証
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - run: pip install cfn-lint
+      - name: SAM テンプレート検証
+        run: cfn-lint infra/sam/template.yaml

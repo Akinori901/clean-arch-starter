@@ -1,0 +1,7 @@
+Django==6.1
+djangorestframework==3.18.0
+django-cors-headers==4.9.0
+mysqlclient==2.2.7
+boto3==1.40.20
+PyJWT[crypto]==2.10.1
+mangum==0.22.0

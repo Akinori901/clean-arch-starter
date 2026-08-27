@@ -1,0 +1,165 @@
+# ローカル開発環境。
+#
+# 本番（AWS）との差分は **エンドポイント URL だけ** に閉じ込める。
+# アプリコードに `if (local)` を書かないこと。
+name: clean-arch-starter
+
+services:
+  db:
+    image: mysql:8.4
+    # Apple Silicon では mysql:8.4 に arm64 イメージが無いことがあるため明示する。
+    # 指定しないと毎回 platform 警告が出て、エミュレーションで遅くなる。
+    platform: linux/amd64
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: app
+      MYSQL_USER: app
+      MYSQL_PASSWORD: app
+      TZ: Asia/Tokyo
+    ports:
+      - "13306:3306"
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      # --silent を付けないと認証エラーが出力に混ざる
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot", "--silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  # S3 互換オブジェクトストレージ。
+  # MinIO は 2026-04 にリポジトリが archived になったため SeaweedFS を採用する。
+  # S3 API 互換なので boto3 / aws-sdk-php はそのまま動く（endpoint 差し替えのみ）。
+  storage:
+    image: chrislusf/seaweedfs:latest
+    command: 'server -dir=/data -s3 -s3.port=8333 -master.volumeSizeLimitMB=64'
+    ports:
+      - "8333:8333"   # S3 API
+      - "9333:9333"   # master UI
+    volumes:
+      - storage-data:/data
+    healthcheck:
+      # S3 API のポートを直接見る。master(9333) が上がっていても
+      # S3 ゲートウェイが未起動なことがあり、それでは意味がない。
+      test: ["CMD", "curl", "-sf", "-o", "/dev/null", "http://localhost:8333/"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  # バケットを作るだけの使い捨てコンテナ。
+  # 起動のたびに冪等に実行される（既にあれば何もしない）。
+  storage-init:
+    image: public.ecr.aws/aws-cli/aws-cli:latest
+    depends_on:
+      storage:
+        condition: service_healthy
+    environment:
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: localsecret
+      AWS_DEFAULT_REGION: ap-northeast-1
+    entrypoint: >
+      sh -c "aws --endpoint-url http://storage:8333 s3 mb s3://app-static || true;
+             aws --endpoint-url http://storage:8333 s3 mb s3://app-uploads || true"
+
+  # Cognito エミュレータ。ローカルでサインインを通すために使う。
+  # 本番は実 Cognito。差分は COGNITO_ENDPOINT_URL の有無だけ。
+  cognito:
+    image: jagregory/cognito-local:latest
+    ports:
+      - "9229:9229"
+    volumes:
+      - ./docker/cognito:/app/.cognito
+
+  django:
+    build:
+      context: ./services/django-ddd
+      dockerfile: ../../docker/django/Dockerfile
+      target: dev
+    command: python manage.py runserver 0.0.0.0:8000
+    environment:
+      DJANGO_DEBUG: "true"
+      DJANGO_SECRET_KEY: dev-only-insecure-key
+      DB_HOST: db
+      DB_NAME: app
+      DB_USER: app
+      DB_PASSWORD: app
+      AWS_REGION: ap-northeast-1
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: localsecret
+      S3_BUCKET: app-static
+      S3_ENDPOINT_URL: http://storage:8333
+      COGNITO_ENDPOINT_URL: http://cognito:9229
+      # scripts/seed-cognito.sh が出力した値を .env で上書きする（下記 env_file）
+      COGNITO_USER_POOL_ID: ${COGNITO_USER_POOL_ID:-local_pool}
+      COGNITO_CLIENT_ID: ${COGNITO_CLIENT_ID:-local-client-id}
+      # cognito-local は自分の公開 URL(localhost) を iss に刻む一方、
+      # コンテナからは cognito:9229 でしか到達できない。両者を分けて指定する。
+      COGNITO_ISSUER_OVERRIDE: http://localhost:9229/${COGNITO_USER_POOL_ID:-local_pool}
+      COGNITO_JWKS_URL_OVERRIDE: http://cognito:9229/${COGNITO_USER_POOL_ID:-local_pool}/.well-known/jwks.json
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./services/django-ddd:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      storage:
+        condition: service_healthy
+
+  laravel:
+    build:
+      context: ./services/laravel-clean
+      dockerfile: ../../docker/laravel/Dockerfile
+      target: dev
+    command: php artisan serve --host=0.0.0.0 --port=8001
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      DB_CONNECTION: mysql
+      DB_HOST: db
+      DB_DATABASE: app
+      DB_USERNAME: app
+      DB_PASSWORD: app
+      AWS_REGION: ap-northeast-1
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: localsecret
+      S3_BUCKET: app-static
+      S3_ENDPOINT_URL: http://storage:8333
+      COGNITO_ENDPOINT_URL: http://cognito:9229
+      COGNITO_USER_POOL_ID: ${COGNITO_USER_POOL_ID:-local_pool}
+      COGNITO_CLIENT_ID: ${COGNITO_CLIENT_ID:-local-client-id}
+      COGNITO_ISSUER_OVERRIDE: http://localhost:9229/${COGNITO_USER_POOL_ID:-local_pool}
+      COGNITO_JWKS_URL_OVERRIDE: http://cognito:9229/${COGNITO_USER_POOL_ID:-local_pool}/.well-known/jwks.json
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./services/laravel-clean:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      storage:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./services/frontend-react
+      dockerfile: ../../docker/frontend/Dockerfile
+      target: dev
+    command: npm run dev -- --host 0.0.0.0
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000
+      VITE_COGNITO_AUTHORITY: http://localhost:9229/${COGNITO_USER_POOL_ID:-local_pool}
+      VITE_COGNITO_CLIENT_ID: ${COGNITO_CLIENT_ID:-local-client-id}
+      VITE_COGNITO_REDIRECT_URI: http://localhost:5173
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./services/frontend-react:/app
+      - /app/node_modules
+
+volumes:
+  db-data:
+  storage-data:

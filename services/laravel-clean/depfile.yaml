@@ -1,0 +1,155 @@
+# クリーンアーキテクチャ層依存チェック（deptrac）
+#
+# .claude/rules/20-laravel-clean.md の依存表を、そのまま機械検知できる形にしたもの。
+# 規約を文章で配るだけでは守られない。CI で落ちる形にして初めてルールになる。
+#
+# 使い方:
+#   composer require --dev deptrac/deptrac
+#   ./vendor/bin/deptrac analyse --config-file=depfile.yaml
+parameters:
+  paths:
+    - ./app
+
+  exclude_files:
+    - '#.*Test\.php#'
+
+  # 既存コードから始める場合、既知の違反はここにベースライン登録してよい。
+  # ただし新たな違反は追加しないこと（減らしていく対象であって逃げ道ではない）。
+  # 空のまま維持できているなら、その層構成は完全準拠している。
+  skip_violations: []
+
+  layers:
+    - name: Controller
+      collectors:
+        - type: classLike
+          value: '^App\\Http\\Controllers\\.*'
+
+    - name: Request
+      collectors:
+        - type: classLike
+          value: '^App\\Http\\Requests\\.*'
+
+    - name: Formatter
+      collectors:
+        - type: classLike
+          value: '^App\\Http\\Formatters\\.*'
+
+    - name: Response
+      collectors:
+        - type: classLike
+          value: '^App\\Http\\Responses\\.*'
+
+    - name: UseCase
+      collectors:
+        - type: classLike
+          value: '^App\\UseCases\\.*'
+
+    - name: Service
+      collectors:
+        - type: classLike
+          value: '^App\\Services\\.*'
+
+    - name: Helper
+      collectors:
+        - type: classLike
+          value: '^App\\Helpers\\.*'
+
+    - name: Dto
+      collectors:
+        - type: classLike
+          value: '^App\\DataTransferObjects\\.*'
+
+    # Repository と RepositoryInterface は同じディレクトリに同居させる規約のため、
+    # ディレクトリではなく **クラス名サフィックス** で層を判別する。
+    - name: RepositoryInterface
+      collectors:
+        - type: classLike
+          value: '^App\\Repositories\\.*RepositoryInterface$'
+
+    - name: Repository
+      collectors:
+        - type: classLike
+          value: '^App\\Repositories\\.*(?<!Interface)Repository$'
+
+    - name: Model
+      collectors:
+        - type: classLike
+          value: '^App\\Models\\.*'
+
+    - name: Enum
+      collectors:
+        - type: classLike
+          value: '^App\\Enums\\.*'
+
+    - name: Exception
+      collectors:
+        - type: classLike
+          value: '^App\\Exceptions\\.*'
+
+    # DI の組立点。契約と実装を結線するため、両方を知ってよい唯一の層。
+    # ここを緩めているぶん、Provider には結線以外を書かないこと。
+    - name: Provider
+      collectors:
+        - type: classLike
+          value: '^App\\Providers\\.*'
+
+  ruleset:
+    Controller:
+      - UseCase
+      - Request
+      - Formatter
+      - Response
+      - Exception
+      - Enum
+
+    UseCase:
+      - Service
+      - Dto
+      - Exception
+      - Enum
+
+    Service:
+      - RepositoryInterface
+      - Helper
+      - Dto
+      - Exception
+      - Enum
+
+    Helper:
+      - Enum
+
+    RepositoryInterface:
+      - Dto
+      - Enum
+      # 契約が送出する例外は契約の一部（@throws）。
+      # 呼び出し側が catch すべき型を宣言できないと、契約として不完全になる。
+      - Exception
+
+    Repository:
+      - RepositoryInterface
+      - Model
+      - Dto
+      - Exception
+      - Enum
+
+    Model:
+      - Enum
+
+    Formatter:
+      - Dto
+      - Enum
+
+    Response:
+      - Enum
+
+    # 結線のみを行う層。実装と契約の両方を参照してよい。
+    Provider:
+      - Repository
+      - RepositoryInterface
+
+    # 依存先なし（末端ノード）
+    Request: []
+    Exception: []
+    Dto:
+      - Enum
+    Enum: []
