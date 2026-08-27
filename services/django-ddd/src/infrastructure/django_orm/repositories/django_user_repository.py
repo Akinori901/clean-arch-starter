@@ -50,6 +50,8 @@ class DjangoUserRepository(UserRepository):
             ),
             profile=Profile(
                 display_name=DisplayName(row.display_name),
-                bio=row.bio,
+                # bio は他サービスと共有するため DB では null 許容。
+                # ドメイン側は「未設定＝空文字」として扱う。
+                bio=row.bio or "",
             ),
         )

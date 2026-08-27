@@ -17,6 +17,10 @@ ban-relative-imports = "all"
 [tool.mypy]
 python_version = "3.12"
 mypy_path = "src"
+# src/ を検査対象に渡すと "src.domain..." と "domain..." の
+# 両方で解決してしまい "found twice under different module names" になる。
+# mypy_path で src/ を起点にしてあるので、明示的に無効化する。
+explicit_package_bases = true
 plugins = ["mypy_django_plugin.main"]
 strict = true
 warn_return_any = true
@@ -25,6 +29,12 @@ disallow_untyped_defs = true
 [[tool.mypy.overrides]]
 module = ["domain.*", "application.*"]
 disallow_any_explicit = true
+
+# boto3 / botocore は py.typed を持たないため、型情報が無い前提で扱う。
+# 実際の型は infrastructure 層の中に閉じており、domain/application へは漏れない。
+[[tool.mypy.overrides]]
+module = ["boto3.*", "botocore.*", "mangum.*"]
+ignore_missing_imports = true
 
 [tool.django-stubs]
 django_settings_module = "config.settings"

@@ -11,6 +11,7 @@ View がやってよいのは 3 つだけ:
 from __future__ import annotations
 
 from dataclasses import asdict
+from typing import Any
 
 from rest_framework import status
 from rest_framework.request import Request
@@ -34,8 +35,8 @@ def _bearer_token(request: Request) -> str | None:
 
 
 class SignInView(APIView):
-    authentication_classes: list = []
-    permission_classes: list = []
+    authentication_classes: list[Any] = []
+    permission_classes: list[Any] = []
 
     def post(self, request: Request) -> Response:
         from interfaces.api.serializers import (
@@ -67,8 +68,8 @@ class SignInView(APIView):
 
 
 class CurrentUserView(APIView):
-    authentication_classes: list = []
-    permission_classes: list = []
+    authentication_classes: list[Any] = []
+    permission_classes: list[Any] = []
 
     def get(self, request: Request) -> Response:
         from interfaces.api.serializers import CurrentUserSerializer
@@ -95,8 +96,8 @@ class CurrentUserView(APIView):
 
 
 class HealthView(APIView):
-    authentication_classes: list = []
-    permission_classes: list = []
+    authentication_classes: list[Any] = []
+    permission_classes: list[Any] = []
 
     def get(self, request: Request) -> Response:
         from interfaces.api.serializers import HealthSerializer
@@ -120,8 +121,8 @@ class LivenessView(APIView):
     readiness と liveness を分けられるようにしておく。
     """
 
-    authentication_classes: list = []
-    permission_classes: list = []
+    authentication_classes: list[Any] = []
+    permission_classes: list[Any] = []
 
     def get(self, request: Request) -> Response:
         return Response({"status": "ok"}, status=status.HTTP_200_OK)

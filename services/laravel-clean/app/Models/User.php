@@ -26,7 +26,9 @@ final class User extends Model
 
     public $incrementing = false;
 
+    /** @var list<string> */
     protected $fillable = ['id', 'email', 'display_name', 'is_active'];
 
+    /** @var array<string, string> */
     protected $casts = ['is_active' => 'bool'];
 }

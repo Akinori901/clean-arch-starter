@@ -1,10 +1,16 @@
-includes:
-    - vendor/larastan/larastan/extension.neon
+# Larastan（Laravel 用拡張）は読み込んでいない。
+# このリポジトリは層構成のサンプルであり、Laravel アプリとして
+# bootstrap されていない（artisan / bootstrap/app.php が無い）ため、
+# Larastan が LARAVEL_VERSION を解決できず起動時に落ちる。
+#
+# 実案件へ移植して Laravel アプリが揃ったら、以下を有効にすること。
+# includes:
+#     - vendor/larastan/larastan/extension.neon
 
 parameters:
     level: 8
     paths:
         - app
-    # Service/UseCase は外部ライブラリに依存しないため、より厳しく検査できる
-    checkMissingIterableValueType: true
+    # checkMissingIterableValueType は PHPStan 2.x で廃止された
+    # （level 6 以上に統合されたため、level 8 なら自動的に検査される）。
     treatPhpDocTypesAsCertain: false

@@ -18,5 +18,8 @@ from mangum import Mangum  # noqa: E402
 
 application = get_asgi_application()
 
-# API Gateway HTTP API (payload v2) を前提とする
-handler = Mangum(application, lifespan="off")
+# API Gateway HTTP API (payload v2) を前提とする。
+#
+# Mangum の ASGI 型定義は scope を MutableMapping、Django は dict と宣言しており、
+# 構造的には互換だが mypy が食い違いとして報告する。実行時は問題なく動く。
+handler = Mangum(application, lifespan="off")  # type: ignore[arg-type]

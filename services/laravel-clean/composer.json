@@ -13,7 +13,6 @@
     "require-dev": {
         "deptrac/deptrac": "^2.0",
         "phpstan/phpstan": "^2.1",
-        "larastan/larastan": "^3.0",
         "laravel/pint": "^1.18",
         "phpunit/phpunit": "^11.5",
         "mockery/mockery": "^1.6"
@@ -31,7 +30,11 @@
     "scripts": {
         "verify:layers": "deptrac analyse --config-file=depfile.yaml",
         "verify:static": "phpstan analyse",
-        "verify": ["@verify:layers", "@verify:static", "phpunit"]
+        "verify": [
+            "@verify:layers",
+            "@verify:static",
+            "phpunit"
+        ]
     },
     "config": {
         "allow-plugins": {
