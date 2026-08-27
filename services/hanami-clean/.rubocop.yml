@@ -16,6 +16,10 @@ AllCops:
     - "config/db/migrate/**/*"
     - "vendor/**/*"
     - "tmp/**/*"
+    # Lambda のハンドラは AWS 側がシグネチャを決めるアダプタ層。
+    # 引数名（event:, context:）も Rack env の組み立ても外部仕様に従うため、
+    # スタイル規約を当てても直しようがない。
+    - "lambda_handler.rb"
 
 # ── 層の依存方向 ────────────────────────────────────────────
 # ドメイン層は Hanami にも ROM にも AWS にも依存しない。
@@ -33,6 +37,14 @@ Lint/Debugger:
 Style/Documentation:
   # 各クラスの役割はコメントで説明済み。強制はしない。
   Enabled: false
+
+# Hanami の生成コードが double quote 基準のため、それに合わせる。
+# 生成物と手書きでスタイルが割れるのを避ける。
+Style/StringLiterals:
+  EnforcedStyle: double_quotes
+
+Style/StringLiteralsInInterpolation:
+  EnforcedStyle: double_quotes
 
 Metrics/MethodLength:
   Max: 25
@@ -59,3 +71,9 @@ RSpec/MultipleExpectations:
 
 RSpec/NestedGroups:
   Max: 4
+
+# spec/domain/ は「ドメイン層のテスト」という括りで置いている。
+# lib 配下のフルパス（app_core/domain/entities/...）を強制すると
+# 階層が深くなるだけで、見つけやすさは変わらない。
+RSpec/SpecFilePathFormat:
+  Enabled: false

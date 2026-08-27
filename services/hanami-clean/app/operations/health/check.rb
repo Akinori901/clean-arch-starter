@@ -16,14 +16,12 @@ module AppCore
         ]
 
         def call
-          status = Domain::Entities::HealthStatus.new
-          status = status.add(probe("database") { users.limit(1).to_a })
-          status = status.add(probe("object_storage") { object_storage.ping })
-          status = status.add(probe("cognito") { cognito_authenticator.ping })
-
           # Dry::Operation#call が戻り値を Success で包むため、
           # ここで自分で包まないこと（二重の Success になる）。
-          status
+          Domain::Entities::HealthStatus.new
+                                        .add(probe("database") { users.limit(1).to_a })
+                                        .add(probe("object_storage") { object_storage.ping })
+                                        .add(probe("cognito") { cognito_authenticator.ping })
         end
 
         private

@@ -253,6 +253,10 @@ GEM
     rubocop-ast (1.50.0)
       parser (>= 3.3.7.2)
       prism (~> 1.7)
+    rubocop-rspec (3.10.2)
+      lint_roller (~> 1.1)
+      regexp_parser (>= 2.0)
+      rubocop (~> 1.86, >= 1.86.2)
     ruby-progressbar (1.13.0)
     sequel (5.107.0)
       bigdecimal
@@ -289,6 +293,7 @@ DEPENDENCIES
   rexml
   rouge
   rubocop (~> 1.90)
+  rubocop-rspec
 
 BUNDLED WITH
    2.6.9

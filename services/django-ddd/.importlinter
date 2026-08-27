@@ -3,11 +3,14 @@
 # .claude/rules/10-django-ddd.md の依存表を、そのまま機械検知できる形にしたもの。
 # 規約を文章で配るだけでは守られない。CI で落ちる形にして初めてルールになる。
 #
-# 使い方:
+# 使い方（サービスルートから実行する）:
 #   pip install import-linter
-#   lint-imports --config .importlinter
+#   PYTHONPATH=src lint-imports --config .importlinter
 
 [importlinter]
+# 層のパッケージは src/ 配下にある。import-linter は PYTHONPATH で解決するため、
+# サービスルートから実行する場合は PYTHONPATH=src を指定すること。
+#   PYTHONPATH=src lint-imports --config .importlinter
 root_packages =
     domain
     application

@@ -13,8 +13,8 @@ Hanami.app.register_provider(:gateways) do
     settings = target["settings"]
 
     register "gateways.cognito_authenticator",
-      AppCore::Gateways::CognitoAuthenticator.new(settings)
+             AppCore::Gateways::CognitoAuthenticator.new(settings)
     register "gateways.object_storage",
-      AppCore::Gateways::ObjectStorage.new(settings)
+             AppCore::Gateways::ObjectStorage.new(settings)
   end
 end

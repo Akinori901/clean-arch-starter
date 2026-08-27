@@ -6,13 +6,13 @@ source "https://rubygems.org"
 # hanami-controller は hanami-utils ~> 2.x を要求するため 3.0 とは解決できない。
 gem "hanami", "~> 3.0.0"
 gem "hanami-action", "~> 3.0.0"
-gem "hanami-router", "~> 3.0.0"
 gem "hanami-db", "~> 3.0.0"
+gem "hanami-router", "~> 3.0.0"
 
-gem "dry-types", "~> 1.7"
-gem "dry-operation", ">= 1.0.1"
-gem "dry-validation", "~> 1.11"
 gem "dry-monads", "~> 1.9"
+gem "dry-operation", ">= 1.0.1"
+gem "dry-types", "~> 1.7"
+gem "dry-validation", "~> 1.11"
 
 gem "i18n", "~> 1.14"
 gem "puma", ">= 7.1"
@@ -38,4 +38,6 @@ end
 group :cli, :development, :test do
   gem "hanami-rspec", "~> 3.0.0"
   gem "rubocop", "~> 1.90", require: false
+  # .rubocop.yml が require しているため、無いと rubocop 自体が起動しない
+  gem "rubocop-rspec", require: false
 end

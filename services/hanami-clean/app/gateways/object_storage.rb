@@ -12,13 +12,13 @@ module AppCore
       def initialize(settings)
         @bucket = settings.s3_bucket
         @client = Aws::S3::Client.new(
-          **{region: settings.aws_region}.tap { |o|
+          **{ region: settings.aws_region }.tap do |o|
             unless settings.s3_endpoint.to_s.empty?
               o[:endpoint] = settings.s3_endpoint
               # SeaweedFS 等の S3 互換実装は仮想ホスト形式に対応しないことがある
               o[:force_path_style] = true
             end
-          }
+          end
         )
       end
 

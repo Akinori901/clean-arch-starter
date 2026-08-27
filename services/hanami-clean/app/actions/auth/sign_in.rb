@@ -18,9 +18,7 @@ module AppCore
         end
 
         def handle(request, response)
-          unless request.params.valid?
-            return render_error(response, 422, "メールアドレスとパスワード(8文字以上)は必須です")
-          end
+          return render_error(response, 422, "メールアドレスとパスワード(8文字以上)は必須です") unless request.params.valid?
 
           result = sign_in.call(
             email: request.params[:email],
@@ -57,13 +55,13 @@ module AppCore
         # ドメインの語彙（Failure のタグ）を HTTP の語彙へ翻訳する。
         # **この変換を行ってよいのは Action だけ。**
         def status_for(tag)
-          {unauthorized: 401, deactivated: 401, not_found: 404, invalid_input: 400}.fetch(tag, 500)
+          { unauthorized: 401, deactivated: 401, not_found: 404, invalid_input: 400 }.fetch(tag, 500)
         end
 
         def render_error(response, status, message)
           response.status = status
           response.format = :json
-          response.body = {detail: message}.to_json
+          response.body = { detail: message }.to_json
         end
       end
     end

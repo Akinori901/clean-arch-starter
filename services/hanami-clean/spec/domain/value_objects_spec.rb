@@ -19,8 +19,11 @@ RSpec.describe AppCore::Domain::ValueObjects do
       expect(described_class.new("taro@example.com").local_part).to eq("taro")
     end
 
-    it "等価性は値で決まる" do
-      expect(described_class.new("a@example.com")).to eq(described_class.new("a@example.com"))
+    it "等価性は値で決まる（同じ値から作った別インスタンスは等価）" do
+      one = described_class.new("a@example.com")
+      another = described_class.new("a@example.com")
+
+      expect(one).to eq(another)
     end
 
     it "不変である" do

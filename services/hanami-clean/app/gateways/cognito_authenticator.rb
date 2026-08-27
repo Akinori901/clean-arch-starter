@@ -31,15 +31,15 @@ module AppCore
       def initialize(settings)
         @settings = settings
         @client = Aws::CognitoIdentityProvider::Client.new(
-          **{region: settings.aws_region}.tap { |o|
+          **{ region: settings.aws_region }.tap do |o|
             o[:endpoint] = settings.cognito_endpoint unless settings.cognito_endpoint.to_s.empty?
-          }
+          end
         )
       end
 
       # 認証情報を検証しトークンを発行する。
       def sign_in(email, password)
-        params = {"USERNAME" => email.to_s, "PASSWORD" => password}
+        params = { "USERNAME" => email.to_s, "PASSWORD" => password }
         params["SECRET_HASH"] = secret_hash(email.to_s) unless @settings.cognito_client_secret.to_s.empty?
 
         result = @client.initiate_auth(

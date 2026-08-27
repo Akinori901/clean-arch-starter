@@ -15,9 +15,9 @@ module AppCore
           response.status = status.healthy? ? 200 : 503
           response.body = {
             healthy: status.healthy?,
-            components: status.components.map { |c|
-              {name: c.name, state: c.state.to_s, detail: c.detail}
-            }
+            components: status.components.map do |c|
+              { name: c.name, state: c.state.to_s, detail: c.detail }
+            end
           }.to_json
         end
       end

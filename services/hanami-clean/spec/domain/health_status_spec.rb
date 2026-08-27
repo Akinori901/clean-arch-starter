@@ -14,8 +14,8 @@ RSpec.describe AppCore::Domain::Entities::HealthStatus do
 
   it "1つでも down なら unhealthy" do
     status = described_class.new
-      .add(component("database", :up))
-      .add(component("cognito", :down, "timeout"))
+                            .add(component("database", :up))
+                            .add(component("cognito", :down, "timeout"))
 
     expect(status).not_to be_healthy
     expect(status.degraded.map(&:name)).to eq(["cognito"])

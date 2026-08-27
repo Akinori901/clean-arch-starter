@@ -45,7 +45,7 @@ verify: verify-django verify-laravel verify-go verify-hanami verify-front ## 全
 
 verify-django: ## Django: 層検証(import-linter) + ruff + mypy + pytest
 	@echo "==> Django DDD 層検証"
-	$(DC) run --rm -w /app/src django lint-imports --config /app/.importlinter
+	$(DC) run --rm -e PYTHONPATH=src django lint-imports --config .importlinter
 	$(DC) run --rm django ruff check src tests
 	$(DC) run --rm django mypy src
 	$(DC) run --rm django pytest tests

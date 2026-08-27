@@ -8,7 +8,7 @@ module AppCore
         def handle(_request, response)
           response.format = :json
           response.status = 200
-          response.body = {status: "ok"}.to_json
+          response.body = { status: "ok" }.to_json
         end
       end
     end

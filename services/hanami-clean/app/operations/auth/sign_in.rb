@@ -31,7 +31,7 @@ module AppCore
           return Failure[:deactivated, "このアカウントは無効化されています"] unless user.can_sign_in?
 
           # Dry::Operation#call が Success で包むので、素の Hash を返す。
-          {tokens: tokens, user: user}
+          { tokens: tokens, user: user }
         end
 
         private

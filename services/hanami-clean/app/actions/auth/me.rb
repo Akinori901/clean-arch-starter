@@ -21,7 +21,7 @@ module AppCore
               is_active: user.can_sign_in?
             }.to_json
           in Failure[tag, message]
-            render_error(response, {unauthorized: 401, not_found: 404}.fetch(tag, 500), message)
+            render_error(response, { unauthorized: 401, not_found: 404 }.fetch(tag, 500), message)
           end
         end
 
@@ -38,7 +38,7 @@ module AppCore
         def render_error(response, status, message)
           response.status = status
           response.format = :json
-          response.body = {detail: message}.to_json
+          response.body = { detail: message }.to_json
         end
       end
     end

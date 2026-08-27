@@ -38,7 +38,9 @@ jobs:
       # 層の依存方向を見る専用のツールが要る。
       - name: 層の依存方向を検証（import-linter）
         run: lint-imports --config .importlinter
-        working-directory: services/django-ddd/src
+        env:
+          # import-linter は PYTHONPATH で層のパッケージを解決する
+          PYTHONPATH: src
 
       - name: 静的解析（ruff）
         run: ruff check src tests
@@ -70,8 +72,11 @@ jobs:
 
       # PHPStan は型を見るが、層の依存方向は見ない。
       # 「Service から Model を直接呼んでいないか」は deptrac の仕事。
+      # --fail-on-uncovered は付けない。Laravel 本体のクラス（Model の基底等）が
+      # uncovered として数えられ、層違反ゼロでも落ちてしまうため。
+      # 見たいのは「宣言した層の間の依存方向」であって網羅率ではない。
       - name: 層の依存方向を検証（deptrac）
-        run: ./vendor/bin/deptrac analyse --config-file=depfile.yaml --fail-on-uncovered
+        run: ./vendor/bin/deptrac analyse --config-file=depfile.yaml
 
       - name: 静的解析（PHPStan）
         run: ./vendor/bin/phpstan analyse --no-progress
