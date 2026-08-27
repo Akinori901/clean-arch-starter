@@ -1,0 +1,116 @@
+# Go クリーンアーキテクチャ層依存チェック（go-arch-lint）
+#
+# .claude/rules/50-go-clean.md の依存表を、そのまま機械検知できる形にしたもの。
+# 規約を文章で配るだけでは守られない。CI で落ちる形にして初めてルールになる。
+#
+# 使い方:
+#   go install github.com/fe3dback/go-arch-lint@latest
+#   go-arch-lint check
+version: 3
+workdir: .
+
+allow:
+  # vendor（外部ライブラリ）の持ち込みも層ごとに制限する。
+  # 「entity に DB ドライバが入っていないか」は import 制限でしか止められない。
+  depOnAnyVendor: false
+
+  # deepScan は「メソッド呼び出し・DI」まで遡って層を判定する。
+  # これを有効にすると、**組立点(app)での依存性注入そのもの**が
+  # 「repo -> usecase」の違反として報告されてしまう。
+  #   例: usecase.NewHealthUseCase(repo.NewDBProbe(db))
+  #       → 実際には app が両方を知って結線しているだけで、
+  #         repo は usecase を import していない（依存は逆流していない）
+  # 組立点で具象を注入するのはクリーンアーキテクチャの前提なので、
+  # ここでは import ベースの判定（Base linter）に絞る。
+  deepScan: false
+
+components:
+  entity:
+    in: internal/entity
+  usecase:
+    in: internal/usecase
+  repo:
+    in: internal/repo
+  controller:
+    in: internal/controller/**
+  app:
+    in: internal/app
+  main:
+    in: cmd/**
+
+# 外部ライブラリの持ち込みも層ごとに制限する。
+# 「entity に DB ドライバが入っていないか」は import 制限でしか止められない。
+vendors:
+  chi:
+    in: github.com/go-chi/chi/**
+  aws:
+    in: github.com/aws/**
+  awsproxy:
+    in: github.com/awslabs/**
+  mysql:
+    in: github.com/go-sql-driver/**
+  jwx:
+    in: github.com/lestrrat-go/**
+
+deps:
+  # ── 最内層。何にも依存しない ──────────────────────────────
+  # entity が外部ライブラリを知った時点で、それはもうエンティティではない。
+  #
+  # entity をここに **書かない** のが「依存先ゼロ」の表し方。
+  # deps に無いコンポーネントは許可リストが空として扱われ、
+  # 何かを import した瞬間に落ちる（空の mayDependOn は設定エラーになる）。
+
+  # ── ユースケース。内側(entity)のみ ────────────────────────
+  # repo / controller を知らない。契約(interface)はここで定義し、
+  # repo 側がそれを満たす（依存性逆転）。
+  # 外部ライブラリを持ち込まない。契約は interface で表し、
+  # 具象（AWS SDK 等）は repo 側に置く。
+  usecase:
+    mayDependOn:
+      - entity
+    anyVendorDeps: false
+
+  # ── 実装層。ここだけが外部技術を知る ──────────────────────
+  # **usecase を import しないこと。** 契約は usecase 側の interface で定義され、
+  # repo はそれを「満たす」だけ（依存性逆転）。import すると依存が逆流する。
+  repo:
+    mayDependOn:
+      - entity
+    canUse:
+      - aws
+      - mysql
+      - jwx
+
+  # ── 外部接点。HTTP の語彙を扱ってよい唯一の層 ─────────────
+  controller:
+    mayDependOn:
+      - entity
+      - usecase
+    canUse:
+      - chi
+
+  # ── 組立点。具象を結線してよいのはここだけ ────────────────
+  app:
+    mayDependOn:
+      - entity
+      - usecase
+      - repo
+      - controller
+    canUse:
+      - aws
+      - mysql
+      - chi
+
+  # ── エントリポイント ─────────────────────────────────────
+  main:
+    mayDependOn:
+      - app
+    canUse:
+      - awsproxy
+      - aws
+      - chi
+
+# entity はどの層からも import してよい（依存グラフの末端）。
+# ここに載せることで、各層の mayDependOn に entity を書く必要がなくなる。
+commonComponents:
+  - entity

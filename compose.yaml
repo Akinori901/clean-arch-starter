@@ -143,6 +143,40 @@ services:
       storage:
         condition: service_healthy
 
+  go:
+    build:
+      context: ./services/go-clean
+      dockerfile: ../../docker/go/Dockerfile
+      target: dev
+    command: go run ./cmd/app
+    environment:
+      DB_HOST: db
+      DB_NAME: app
+      DB_USER: app
+      DB_PASSWORD: app
+      AWS_REGION: ap-northeast-1
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: localsecret
+      S3_BUCKET: app-static
+      S3_ENDPOINT_URL: http://storage:8333
+      COGNITO_ENDPOINT_URL: http://cognito:9229
+      COGNITO_USER_POOL_ID: ${COGNITO_USER_POOL_ID:-local_pool}
+      COGNITO_CLIENT_ID: ${COGNITO_CLIENT_ID:-local-client-id}
+      COGNITO_ISSUER_OVERRIDE: http://localhost:9229/${COGNITO_USER_POOL_ID:-local_pool}
+      COGNITO_JWKS_URL_OVERRIDE: http://cognito:9229/${COGNITO_USER_POOL_ID:-local_pool}/.well-known/jwks.json
+      PORT: "8002"
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./services/go-clean:/app
+      # go mod のキャッシュを保持する（毎回の再取得を避ける）
+      - go-mod-cache:/go/pkg/mod
+    depends_on:
+      db:
+        condition: service_healthy
+      storage:
+        condition: service_healthy
+
   frontend:
     build:
       context: ./services/frontend-react
@@ -163,3 +197,4 @@ services:
 volumes:
   db-data:
   storage-data:
+  go-mod-cache:
