@@ -1,0 +1,6 @@
+{
+  "//": ".NET 10 では VSTest 経由のテスト実行が廃止された。xunit v3 系は Microsoft.Testing.Platform(MTP) で動くため、ここで明示的に切り替える。これが無いと dotnet test が 'Testing with VSTest target is no longer supported' で落ちる。",
+  "test": {
+    "runner": "Microsoft.Testing.Platform"
+  }
+}

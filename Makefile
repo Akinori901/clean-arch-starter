@@ -3,7 +3,7 @@
 # CI（.github/workflows/verify.yml）と同じコマンドをローカルでも流せるようにする。
 # 「CI でだけ落ちる」状態を作らないため。
 .DEFAULT_GOAL := help
-.PHONY: help up down logs seed verify verify-django verify-laravel verify-front fmt migrate clean
+.PHONY: help up down logs seed verify verify-django verify-laravel verify-go verify-hanami verify-dotnet verify-front fmt migrate clean
 
 DC := docker compose
 
@@ -20,6 +20,7 @@ up: ## 全サービスを起動（初回は seed も実行すること）
 	@echo "  Laravel  : http://localhost:8001/api/health"
 	@echo "  Go       : http://localhost:8002/api/health"
 	@echo "  Hanami   : http://localhost:8003/api/health"
+	@echo "  .NET     : http://localhost:8004/api/health"
 	@echo "  Frontend : http://localhost:5173"
 
 down: ## 停止（ボリュームは残す）
@@ -41,7 +42,7 @@ migrate: ## Django のマイグレーション
 	$(DC) run --rm django python manage.py migrate
 
 ## ── 規約検証（CI と同じ内容）──────────────────────────────
-verify: verify-django verify-laravel verify-go verify-hanami verify-front ## 全スタックの層検証 + 静的解析 + テスト
+verify: verify-django verify-laravel verify-go verify-hanami verify-dotnet verify-front ## 全スタックの層検証 + 静的解析 + テスト
 
 verify-django: ## Django: 層検証(import-linter) + ruff + mypy + pytest
 	@echo "==> Django DDD 層検証"
@@ -69,6 +70,15 @@ verify-hanami: ## Hanami: 層検証 + RuboCop + RSpec
 	$(DC) run --rm hanami bundle exec rubocop
 	$(DC) run --rm hanami bundle exec rspec spec/domain -I lib -I spec
 
+verify-dotnet: ## .NET: 層検証(ProjectReference + NetArchTest) + テスト
+	@echo "==> .NET クリーンアーキ層検証"
+	# ProjectReference が依存方向を強制する。Domain に Infrastructure への
+	# 参照を足すと、ここがコンパイルエラーで落ちる。
+	$(DC) run --rm dotnet dotnet build --configuration Release
+	# NetArchTest が「パッケージ依存」「HTTP 語彙の混入」を落とす。
+	# ProjectReference だけでは NuGet 経由の層破壊を拾えない。
+	$(DC) run --rm dotnet dotnet test --configuration Release
+
 verify-front: ## Frontend: 境界検証(eslint-boundaries) + 型検査
 	@echo "==> フロント境界検証"
 	$(DC) run --rm frontend npm run lint
@@ -79,3 +89,4 @@ fmt: ## フォーマット
 	$(DC) run --rm laravel ./vendor/bin/pint
 	$(DC) run --rm go gofmt -w .
 	$(DC) run --rm hanami bundle exec rubocop -a
+	$(DC) run --rm dotnet dotnet format

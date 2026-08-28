@@ -24,6 +24,9 @@ __pycache__/
 dist/
 build/
 *.egg-info/
+# .NET（bin/ obj/ は各プロジェクト直下に作られる）
+[Bb]in/
+[Oo]bj/
 
 # ツールのキャッシュ
 .ruff_cache/

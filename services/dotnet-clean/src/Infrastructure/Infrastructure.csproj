@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    実装層。**外部技術（EF Core / AWS SDK）を参照してよいのはここだけ。**
+
+    Application を参照しているのは、Application が定義した契約(interface)を
+    実装するため。矢印は Infrastructure → Application、つまり外から内を向いている。
+    依存性逆転が効いているので、これは正しい向き。
+
+    逆に Application.csproj からこのプロジェクトを参照すると循環参照になり、
+    ビルドが通らない。層の向きがビルドグラフとして保証される。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Application/Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.11" />
+    <!--
+      MySQL プロバイダは Oracle 公式の MySql.EntityFrameworkCore を使う。
+      Pomelo は EF Core 9 までしか出ておらず（2026-08 時点で 10 対応が未リリース）、
+      EF Core 10 と組み合わせるとバージョン解決で落ちる。
+    -->
+    <PackageReference Include="MySql.EntityFrameworkCore" Version="10.0.9" />
+    <PackageReference Include="AWSSDK.CognitoIdentityProvider" Version="4.0.104" />
+    <PackageReference Include="AWSSDK.S3" Version="4.0.102.4" />
+    <!-- JWT(アクセストークン)の署名検証と JWKS の解釈に使う -->
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.22.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
+  </ItemGroup>
+
+</Project>

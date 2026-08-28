@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    ユースケース層。**Domain だけを参照する。**
+
+    Infrastructure への ProjectReference を足すと循環参照になり
+    dotnet build が落ちる（Infrastructure が Application を参照しているため）。
+    「Application が Infrastructure を知らない」ことが、
+    ビルドグラフの形として保証される。
+
+    NuGet パッケージも入れない。EF Core / AWS SDK の型が契約に出てきたら、
+    それは Infrastructure に置くべきものが漏れている。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Domain/Domain.csproj" />
+  </ItemGroup>
+
+</Project>

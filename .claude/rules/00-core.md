@@ -27,6 +27,7 @@ AI は「動くコード」を最短で書こうとするため、放ってお�
   - インフラ/CD を触る → `40-infra-cd.md`
   - Go を触る → `50-go-clean.md`（クリーンアーキ）
   - Hanami(Ruby) を触る → `60-hanami-clean.md`（クリーンアーキ）
+  - C#(.NET) を触る → `70-dotnet-clean.md`（クリーンアーキ）
 - **新しいファイルを作る前に、そのファイルがどの層に属するか宣言すること。**
   層が決まらないファイルは、まだ設計が終わっていない。
 - **「とりあえず動かす」ための層跨ぎを禁止する。**
@@ -47,6 +48,8 @@ AI は「動くコード」を最短で書こうとするため、放ってお�
 | Go | golangci-lint / go vet | 静的解析 |
 | Hanami | bin/verify-layers | 層の依存方向（クリーンアーキ） |
 | Hanami | RuboCop | 静的解析 |
+| .NET | ProjectReference | 層の依存方向（コンパイル時に強制） |
+| .NET | NetArchTest | 層の依存方向（パッケージ依存・HTTP語彙の混入） |
 | React | eslint-plugin-boundaries | feature 間の境界 |
 
 **どの層検証も「違反を注入したら落ちること」を確認してある。**

@@ -140,6 +140,32 @@ jobs:
       - name: テスト（ドメイン層は Hanami を起動せずに動く）
         run: bundle exec rspec spec/domain -I lib -I spec
 
+  dotnet:
+    name: .NET (クリーンアーキ層検証)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/dotnet-clean
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      # ── ここが本丸（1段目）──
+      # C# は ProjectReference が依存方向を強制する。
+      # Domain に Infrastructure への参照を足すと、
+      # 循環参照としてビルドがコンパイルエラーで落ちる。
+      - name: 層の依存方向を検証（ProjectReference / ビルド）
+        run: dotnet build --configuration Release
+
+      # ── ここが本丸（2段目）──
+      # ProjectReference は「他プロジェクトへの依存」しか縛らないため、
+      # NuGet パッケージ経由の層破壊（Domain に EF Core を入れる等）は素通りする。
+      # それを NetArchTest で落とす。
+      - name: 層の依存方向を検証（NetArchTest）+ テスト
+        run: dotnet test --configuration Release --no-build
+
   frontend:
     name: Frontend (境界検証)
     runs-on: ubuntu-latest

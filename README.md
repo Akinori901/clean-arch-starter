@@ -15,6 +15,7 @@ AI は「動くコード」を最短で書こうとするため、放ってお�
 | **Laravel** | クリーンアーキテクチャ | deptrac |
 | **Go** | クリーンアーキテクチャ | go-arch-lint |
 | **Hanami** (Ruby) | クリーンアーキテクチャ | `bin/verify-layers` |
+| **C#** (.NET) | クリーンアーキテクチャ | ProjectReference + NetArchTest |
 | **React** | feature-sliced | eslint-plugin-boundaries |
 
 **どの検証も「違反を注入したら実際に落ちること」を確認済みです。**
@@ -30,7 +31,7 @@ Cognito 認証（サインイン / 現在ユーザー取得）とヘルスチェ
 | DB | MySQL 8.4 | RDS MySQL |
 | オブジェクトストレージ | SeaweedFS（S3 API 互換） | S3 |
 | 認証 | cognito-local | Cognito User Pool |
-| Django / Laravel / Go / Hanami | Docker コンテナ | **Lambda**（コンテナイメージ） |
+| Django / Laravel / Go / Hanami / .NET | Docker コンテナ | **Lambda**（コンテナイメージ） |
 | React | Vite dev server | **S3 + CloudFront** |
 
 ローカルと本番で**同じ SDK・同じコードパス**を通します。
@@ -50,11 +51,12 @@ make verify      # 層検証 + 静的解析 + テスト（CI と同じ内容）
 動作確認:
 
 ```bash
-# 4サービスとも同じ API・同じ users テーブルを共有します
+# 5サービスとも同じ API・同じ users テーブルを共有します
 curl localhost:8000/api/health   # Django (DDD)
 curl localhost:8001/api/health   # Laravel (クリーンアーキ)
 curl localhost:8002/api/health   # Go (クリーンアーキ)
 curl localhost:8003/api/health   # Hanami (クリーンアーキ)
+curl localhost:8004/api/health   # C#/.NET (クリーンアーキ)
 # {"healthy":true,"components":[{"name":"database","state":"up"}, ...]}
 
 curl -X POST localhost:8000/api/auth/sign-in \
@@ -81,6 +83,7 @@ curl -X POST localhost:8000/api/auth/sign-in \
 | React | [`30-frontend.md`](.claude/rules/30-frontend.md) | eslint-plugin-boundaries | `services/frontend-react/eslint.config.js` |
 | Go | [`50-go-clean.md`](.claude/rules/50-go-clean.md) | go-arch-lint | `services/go-clean/.go-arch-lint.yml` |
 | Hanami | [`60-hanami-clean.md`](.claude/rules/60-hanami-clean.md) | 専用スクリプト | `services/hanami-clean/bin/verify-layers` |
+| C#(.NET) | [`70-dotnet-clean.md`](.claude/rules/70-dotnet-clean.md) | ProjectReference + NetArchTest | 各 `.csproj` / `tests/ArchitectureTests/` |
 
 **規約ドキュメントと設定ファイルは同じ内容です。**
 片方だけ直すと乖離するため、必ず両方を更新してください。
@@ -274,6 +277,94 @@ $ bundle exec rspec spec/domain
 
 **Hanami を起動せず、DB も無しで 21 件が 0.018 秒**で終わります。
 
+## C# — クリーンアーキテクチャ構成（.NET）
+
+.NET コミュニティではクリーンアーキテクチャが事実上の標準です
+（**Jason Taylor 版 20.5k★**・**Ardalis 版 18.4k★**）。
+どちらも**プロジェクト分割で依存方向を強制する**構成を採ります。
+
+**C# 最大の強みは、依存の向きをビルドシステムそのものが保証すること**です。
+`.csproj` の `ProjectReference` に無いプロジェクトの型は、そもそも**書けません**。
+他言語のように「lint が後から怒る」のではなく、コンパイルが通りません。
+
+```
+services/dotnet-clean/
+├── src/
+│   ├── Domain/          # 最内層。ProjectReference も PackageReference も持たない
+│   ├── Application/     # ユースケース + 契約(interface)。Domain のみ参照
+│   ├── Infrastructure/  # 契約の実装。EF Core / AWS SDK はここだけ
+│   └── Web/             # ASP.NET Core。エントリポイント・DI 組立
+└── tests/
+    ├── Domain.UnitTests/
+    ├── Application.UnitTests/
+    └── ArchitectureTests/   # NetArchTest による層依存の検証
+```
+
+### 検証は 2 段構え
+
+**ProjectReference だけでは足りません。** 以下はコンパイルを通ってしまいます。
+
+- `Domain.csproj` に `PackageReference` で EF Core を足す
+- そのうえで `Domain` のエンティティが `DbContext` を持つ
+
+`ProjectReference` は「他プロジェクトへの依存」しか縛らないため、
+**NuGet パッケージ経由の層破壊は素通りします**。これを `NetArchTest` で落とします。
+
+| 検証 | 何を守るか | 落ち方 |
+|---|---|---|
+| ProjectReference | プロジェクト間の依存方向 | `dotnet build` がコンパイルエラー |
+| NetArchTest | パッケージ依存・HTTP 語彙の混入・実装クラスの公開 | `dotnet test` が失敗 |
+
+1 段目は、`Domain.csproj` に `Infrastructure` への参照を足すと落ちます。
+
+```
+error MSB4006: There is a circular dependency in the target dependency graph
+involving target "_GenerateRestoreProjectPathWalk".
+```
+
+2 段目は、`Domain` に EF Core を **PackageReference で**足すと落ちます
+（このときビルドは成功してしまう、というのが要点です）。
+
+```
+failed ArchitectureTests.LayerDependencyTests.Domain_はEFCoreに依存しない
+  Domain が EF Core に依存しています
+  違反している型:
+    - Domain.Entities.User
+```
+
+**どちらも違反を注入して落ちることを確認済みです。**
+
+### C# 特有の作法
+
+- **契約(interface)は「使う側」である `Application` に置く。**
+  `Infrastructure` がそれを実装します。矢印は Infrastructure → Application、
+  つまり外から内を向きます（依存性逆転）。
+- **`Infrastructure` の実装クラスは `internal`。**
+  `public` にすると `Web` から直接 `new` できてしまい、
+  「Web が触れるのは Application の契約だけ」という前提が崩れます。
+  公開するのは結線口（`DependencyInjection`）と `Options` だけです。
+- **エンティティは `record` ではなく `class`。**
+  `record` は値等価性を既定にしますが、エンティティの等価性は識別子だけで決まります。
+  `record` にすると「表示名を変えたら別人」という誤った等価性になります。
+  逆に**値オブジェクトは `readonly record struct`** が最適です。
+
+### users テーブルは共有物
+
+`users` は **Django が所有**し、既存 4 スタックと**同じ行を共有します**。
+そのため **EF Core のマイグレーションは作りません**。
+同じテーブルを 2 つのマイグレーション履歴が管理すると、必ず壊れるためです。
+
+```bash
+$ dotnet test
+  total: 48
+  failed: 0
+  succeeded: 48
+  duration: 4s 437ms
+```
+
+**DB も AWS も起動せずに 48 件が終わります**（うち 8 件が層検証）。
+`Domain.UnitTests` は `Domain` しか参照していないので、そもそも起動しようがありません。
+
 ## React — feature-sliced 構成
 
 ```
@@ -311,6 +402,9 @@ AI は与えられたタスクを最短で満たそうとするため、
 | [`20-laravel-clean.md`](.claude/rules/20-laravel-clean.md) | Laravel を触るとき |
 | [`30-frontend.md`](.claude/rules/30-frontend.md) | React を触るとき |
 | [`40-infra-cd.md`](.claude/rules/40-infra-cd.md) | インフラ / CD を触るとき |
+| [`50-go-clean.md`](.claude/rules/50-go-clean.md) | Go を触るとき |
+| [`60-hanami-clean.md`](.claude/rules/60-hanami-clean.md) | Hanami(Ruby) を触るとき |
+| [`70-dotnet-clean.md`](.claude/rules/70-dotnet-clean.md) | C#(.NET) を触るとき |
 
 ルールには**層ごとの責務・命名規約・禁止事項**が書かれています。
 AI は新しいファイルを作る前に、**そのファイルがどの層に属するかを宣言**します。

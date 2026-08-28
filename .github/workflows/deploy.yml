@@ -71,6 +71,7 @@ jobs:
       laravel-image: ${{ steps.build.outputs.laravel-image }}
       go-image: ${{ steps.build.outputs.go-image }}
       hanami-image: ${{ steps.build.outputs.hanami-image }}
+      dotnet-image: ${{ steps.build.outputs.dotnet-image }}
     steps:
       - uses: actions/checkout@v5
 
@@ -98,6 +99,7 @@ jobs:
           LARAVEL="$REGISTRY/${STACK_NAME}-laravel:$TAG"
           GO="$REGISTRY/${STACK_NAME}-go:$TAG"
           HANAMI="$REGISTRY/${STACK_NAME}-hanami:$TAG"
+          DOTNET="$REGISTRY/${STACK_NAME}-dotnet:$TAG"
 
           # Lambda は arm64（Graviton）で動かすため、そのプラットフォームで焼く。
           # ここを揃えないと "exec format error" で起動しない。
@@ -117,10 +119,15 @@ jobs:
             -f docker/hanami/Dockerfile --target lambda \
             -t "$HANAMI" --push services/hanami-clean
 
+          docker buildx build --platform linux/arm64 --provenance=false \
+            -f docker/dotnet/Dockerfile --target lambda \
+            -t "$DOTNET" --push services/dotnet-clean
+
           echo "django-image=$DJANGO"  >> "$GITHUB_OUTPUT"
           echo "laravel-image=$LARAVEL" >> "$GITHUB_OUTPUT"
           echo "go-image=$GO"           >> "$GITHUB_OUTPUT"
           echo "hanami-image=$HANAMI"   >> "$GITHUB_OUTPUT"
+          echo "dotnet-image=$DOTNET"   >> "$GITHUB_OUTPUT"
 
   infra:
     name: SAM デプロイ
@@ -161,6 +168,7 @@ jobs:
               LaravelImageUri="${{ needs.backend.outputs.laravel-image }}" \
               GoImageUri="${{ needs.backend.outputs.go-image }}" \
               HanamiImageUri="${{ needs.backend.outputs.hanami-image }}" \
+              DotnetImageUri="${{ needs.backend.outputs.dotnet-image }}" \
               DbHost="${{ secrets.DB_HOST }}" \
               DbSecretArn="${{ secrets.DB_SECRET_ARN }}" \
               VpcSubnetIds="${{ secrets.VPC_SUBNET_IDS }}" \

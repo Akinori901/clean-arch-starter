@@ -21,6 +21,9 @@ Parameters:
   HanamiImageUri:
     Type: String
     Description: ECR に push 済みの Hanami コンテナイメージ URI
+  DotnetImageUri:
+    Type: String
+    Description: ECR に push 済みの .NET コンテナイメージ URI
   DbHost:
     Type: String
     Description: RDS のエンドポイント（Terraform 側で作る場合は SSM から渡す）
@@ -204,6 +207,40 @@ Resources:
           Properties:
             ApiId: !Ref HttpApi
             Path: /hanami/{proxy+}
+            Method: ANY
+
+  DotnetFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      ImageUri: !Ref DotnetImageUri
+      VpcConfig:
+        SubnetIds: !Ref VpcSubnetIds
+        SecurityGroupIds: [!Ref LambdaSecurityGroupId]
+      Environment:
+        Variables:
+          DB_HOST: !Ref DbHost
+          DB_NAME: app
+          COGNITO_USER_POOL_ID: !Ref UserPool
+          COGNITO_CLIENT_ID: !Ref UserPoolClient
+          S3_BUCKET: !Ref AssetBucket
+          # Lambda は /tmp 以外書き込み不可。
+          # ASP.NET Core はデータ保護キーの保存先を必要とするため、そこへ逃がす。
+          TMPDIR: /tmp
+          DOTNET_BUNDLE_EXTRACT_BASE_DIR: /tmp
+      Policies:
+        - AWSSecretsManagerGetSecretValuePolicy: { SecretArn: !Ref DbSecretArn }
+        - S3CrudPolicy: { BucketName: !Ref AssetBucket }
+        - Statement:
+            - Effect: Allow
+              Action: [cognito-idp:DescribeUserPool]
+              Resource: !GetAtt UserPool.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /dotnet/{proxy+}
             Method: ANY
 
   HttpApi:
