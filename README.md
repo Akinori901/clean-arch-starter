@@ -2,6 +2,20 @@
 
 **アーキテクチャ規約を「文章」ではなく「CI で落ちる仕組み」として持つスターターテンプレート。**
 
+<p>
+  <img alt="Python / Django" src="https://img.shields.io/badge/Django-DDD-092E20?logo=django&logoColor=white">
+  <img alt="PHP / Laravel" src="https://img.shields.io/badge/Laravel-Clean_Arch-FF2D20?logo=laravel&logoColor=white">
+  <img alt="Go" src="https://img.shields.io/badge/Go-Clean_Arch-00ADD8?logo=go&logoColor=white">
+  <img alt="Ruby / Hanami" src="https://img.shields.io/badge/Hanami-Clean_Arch-A0100F?logo=ruby&logoColor=white">
+  <img alt="C# / .NET" src="https://img.shields.io/badge/.NET-Clean_Arch-512BD4?logo=dotnet&logoColor=white">
+  <img alt="React" src="https://img.shields.io/badge/React-feature--sliced-61DAFB?logo=react&logoColor=black">
+</p>
+<p>
+  <img alt="依存方向をCIで検証" src="https://img.shields.io/badge/依存方向-CIで機械検証-2ea44f">
+  <img alt="AWS" src="https://img.shields.io/badge/AWS-SAM_/_Terraform-232F3E?logo=amazonwebservices&logoColor=white">
+  <img alt="License" src="https://img.shields.io/badge/License-MIT-green">
+</p>
+
 Django は DDD、Laravel はクリーンアーキテクチャで構成し、
 **同じ規約を機械検証ツールの設定として持つ**ことで、レビューに依存せず構造を維持します。
 
