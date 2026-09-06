@@ -1,5 +1,5 @@
 {
-    "name": "qol/laravel-clean",
+    "name": "example/laravel-clean",
     "type": "project",
     "description": "クリーンアーキテクチャ構成の Laravel サンプル（Cognito 認証 + ヘルスチェック）",
     "require": {
