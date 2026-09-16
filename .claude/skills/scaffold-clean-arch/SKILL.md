@@ -143,6 +143,29 @@ make verify-<stack>    # 層検証 + 静的解析 + テスト
 make fmt               # フォーマット
 ```
 
+### 層検証だけを早く回したいとき
+
+**層検証・静的解析・単体テストは DB も Cognito も要らない。**
+ホストのポートが他プロジェクトと衝突する場合や、単に速く回したい場合は
+`--no-deps` で依存コンテナを起こさずに実行できる（実測で確認済み）。
+
+```bash
+docker compose run --rm --no-deps -e PYTHONPATH=src django lint-imports --config .importlinter
+docker compose run --rm --no-deps django ruff check src tests
+docker compose run --rm --no-deps django mypy src
+docker compose run --rm --no-deps django pytest tests
+docker compose run --rm --no-deps go sh -c "go install github.com/fe3dback/go-arch-lint@latest && \$(go env GOPATH)/bin/go-arch-lint check"
+```
+
+Hanami の層チェッカは素の Ruby なので、Docker 無しでも動く:
+
+```bash
+cd services/hanami-clean && ruby bin/verify-layers
+```
+
+**ただし「速い検証が通った」を「verify が通った」と報告しない。**
+最終確認は `make verify-<stack>` で行う。
+
 **層検証が落ちたら、まず「自分の設計が間違っている」と考える。**
 検証ツールの設定（`.importlinter` / `depfile.yaml` / `.go-arch-lint.yml` / `bin/verify-layers`）を
 緩めて通すのは最後の手段であり、**ユーザー確認なしに触らない**。
