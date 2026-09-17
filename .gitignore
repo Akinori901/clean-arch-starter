@@ -25,8 +25,12 @@ dist/
 build/
 *.egg-info/
 # .NET（bin/ obj/ は各プロジェクト直下に作られる）
-[Bb]in/
-[Oo]bj/
+#
+# **.NET 配下に限定すること。** 素の `[Bb]in/` にすると、
+# Hanami の bin/verify-layers や Django の bin/verify-design のような
+# **手で書いたスクリプトまで巻き込む**（実際に新規追加が弾かれた）。
+services/dotnet-clean/**/[Bb]in/
+services/dotnet-clean/**/[Oo]bj/
 
 # ツールのキャッシュ
 .ruff_cache/

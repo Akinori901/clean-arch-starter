@@ -42,6 +42,12 @@ jobs:
           # import-linter は PYTHONPATH で層のパッケージを解決する
           PYTHONPATH: src
 
+      # import-linter が見るのは「どの層が何を import したか」だけ。
+      # 集約の不変条件が UseCase の if に漏れていても、層は越えていないので通る。
+      # 通してしまうと「ディレクトリだけ DDD」のコードが育つため、ここで落とす。
+      - name: 設計規約を検証（貧血症・外側語彙・公開面）
+        run: python3 bin/verify-design
+
       - name: 静的解析（ruff）
         run: ruff check src tests
 
