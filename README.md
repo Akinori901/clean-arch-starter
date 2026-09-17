@@ -25,7 +25,7 @@ AI は「動くコード」を最短で書こうとするため、放ってお�
 
 | スタック | 構成 | 検証ツール |
 |---|---|---|
-| **Django** | DDD | import-linter |
+| **Django** | DDD | import-linter + `bin/verify-design` |
 | **Laravel** | クリーンアーキテクチャ | deptrac |
 | **Go** | クリーンアーキテクチャ | go-arch-lint |
 | **Hanami** (Ruby) | クリーンアーキテクチャ | `bin/verify-layers` |
@@ -92,7 +92,7 @@ curl -X POST localhost:8000/api/auth/sign-in \
 
 | スタック | 規約 | 検証ツール | 設定ファイル |
 |---|---|---|---|
-| Django | [`10-django-ddd.md`](.claude/rules/10-django-ddd.md) | import-linter | `services/django-ddd/.importlinter` |
+| Django | [`10-django-ddd.md`](.claude/rules/10-django-ddd.md) | import-linter + 設計検証 | `services/django-ddd/.importlinter` / `services/django-ddd/bin/verify-design` |
 | Laravel | [`20-laravel-clean.md`](.claude/rules/20-laravel-clean.md) | deptrac | `services/laravel-clean/depfile.yaml` |
 | React | [`30-frontend.md`](.claude/rules/30-frontend.md) | eslint-plugin-boundaries | `services/frontend-react/eslint.config.js` |
 | Go | [`50-go-clean.md`](.claude/rules/50-go-clean.md) | go-arch-lint | `services/go-clean/.go-arch-lint.yml` |
@@ -164,6 +164,45 @@ $ pytest tests
 
 **DB もフレームワークも AWS も無しで、29 件のテストが 0.03 秒で終わります。**
 ドメインのテストに Django のセットアップが要らないのが、層を分けた見返りです。
+
+### import-linter だけでは足りないもの
+
+import-linter が見るのは **「どの層が何を import したか」だけ**です。
+しかし規約が禁じていることには、**import に表れないもの**があります。
+
+```python
+# 層は越えていない。import-linter は通す。
+# だが「無効なら拒否する」という規則を UseCase が持ってしまっている。
+if not account.user.is_active or account.user.status == "suspended":
+    raise AuthenticationFailedError(...)
+```
+
+これを通すと、**ディレクトリだけ DDD** のコードが育ちます。
+そこで `bin/verify-design` が次の 3 つを落とします。
+
+| ルール | 何を見るか |
+|---|---|
+| `anemic-domain` | UseCase が**属性を直接読んで**業務判定していないか |
+| `outward-vocabulary` | `domain`/`application` に HTTP・表現の語彙が来ていないか |
+| `public-surface` | ユースケースの公開メソッドが `execute()` だけか |
+
+判定の要は「**メソッドへ委譲しているか**」です。
+
+```python
+if not account.user.can_sign_in():   # OK。判定規則は集約が持つ
+if account is None:                   # OK。Null チェック
+if account.user.is_active:            # NG。規則が UseCase に漏れている
+```
+
+**誤検知を出さないことを最優先に設計しています。**
+検証はオオカミ少年になった時点で死ぬ（誰も読まなくなり、やがて `|| true` が付く）ためです。
+
+素朴に「属性で分岐したら違反」とすると、外部の実コード 552 ファイルで
+**if 文の 14.5% を誤検知**しました。そこでレシーバと属性名の二段で絞り込み、
+**5 コードベース・約 35,000 件の if 文**で検証率 0〜1.1%、
+かつ残った指摘がいずれも妥当であることを確認しています。
+
+もちろん **違反を注入したら実際に落ちること**も 3 ルールすべてで確認済みです。
 
 ### 主要な禁止事項
 

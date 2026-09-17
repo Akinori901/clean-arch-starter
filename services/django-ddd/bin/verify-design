@@ -1,0 +1,444 @@
+#!/usr/bin/env python3
+"""設計規約の検証（import-linter が見られない領域を埋める）。
+
+import-linter が見るのは「どの層がどの層を import したか」だけである。
+だが `.claude/rules/10-django-ddd.md` が禁じていることには、
+**import では表れないもの**がある。
+
+    ❌ 集約の不変条件を UseCase 側の if で書く（ドメインが貧血症になる）
+    ❌ ドメインに HTTP の語彙を持ち込む
+    ❌ 公開面を増やしすぎる
+
+これらは「層を越えていない」ので import-linter は通す。
+通してしまうと、**ディレクトリだけ DDD**のコードが育つ。そこを落とすのがこれ。
+
+使い方:
+    python3 bin/verify-design            # src/ を検査
+    python3 bin/verify-design --json     # 機械可読な出力
+
+設計方針:
+    **誤検知を出さないことを最優先にする。**
+    検証は「オオカミ少年になった時点で死ぬ」。誰も見なくなり、
+    そのうち `|| true` が付く。だから疑わしきは通す側に倒し、
+    確実に言い切れるものだけを落とす。
+"""
+from __future__ import annotations
+
+import argparse
+import ast
+import json
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+SRC = ROOT / "src"
+
+
+@dataclass(frozen=True)
+class Violation:
+    rule: str
+    path: Path
+    lineno: int
+    message: str
+    hint: str
+
+    def format(self) -> str:
+        rel = self.path.relative_to(ROOT)
+        return f"  {rel}:{self.lineno}: [{self.rule}] {self.message}\n      → {self.hint}"
+
+
+# --------------------------------------------------------------------------
+# ルール1: ドメイン判定を UseCase に書かない（貧血症の検知）
+# --------------------------------------------------------------------------
+#
+# 「if の有無」では判定できない。UseCase に if があること自体は正しい。
+# 見るべきは **何を根拠に分岐しているか**。
+#
+#     if not account.user.can_sign_in():   ← OK。判定はドメインが持つ
+#     if account is None:                  ← OK。Null チェック
+#     if account.user.is_active:           ← NG。属性を読んで業務判定している
+#
+# 属性を直接読んで分岐した時点で、その規則は集約ではなく UseCase が
+# 持っていることになる。これがドメインを貧血症にする主経路。
+
+# 判定は**厳しく絞る**。緩いと CLI 引数・フレームワークの提供物・手続きの
+# 都合まで拾ってしまう（外部の実コード 552 ファイルで試したところ、
+# 素朴な「属性で分岐したら違反」では if の 14.5% を誤検知した）。
+#
+# 誤検知を出す検証は、オオカミ少年になった時点で死ぬ。誰も読まなくなり、
+# やがて `|| true` が付く。だから**二段構え**にして、疑わしきは通す。
+#
+#   1. 読んでいる属性が、業務上の状態を表す名前か
+#   2. レシーバが、フレームワークや手続きのものではないか
+#
+# どちらかが欠ければ通す。
+
+# 業務上の状態を表しやすい属性名。ここに該当するものだけを見る。
+_DOMAIN_STATE_PREFIXES = ("is_", "has_", "can_", "was_", "should_")
+_DOMAIN_STATE_NAMES = frozenset(
+    {
+        "active",
+        "enabled",
+        "disabled",
+        "deleted",
+        "expired",
+        "approved",
+        "rejected",
+        "published",
+        "locked",
+        "suspended",
+        "status",
+        "state",
+        "role",
+        "plan",
+        "tier",
+    }
+)
+
+# 名前が上の条件に合っても、業務判定ではないもの。
+# フレームワークが生やす属性と、実行結果の確認。
+_NOT_DOMAIN_ATTRS = frozenset(
+    {
+        # Django / DRF が User などに生やす
+        "is_authenticated",
+        "is_anonymous",
+        "is_staff",
+        "is_superuser",
+        "is_valid",
+        "is_bound",
+        # 手続き・実行結果の確認
+        "returncode",
+        "status_code",
+        "is_alive",
+        "is_set",
+        "is_closed",
+        "is_file",
+        "is_dir",
+    }
+)
+
+# レシーバがこれらなら、ドメインオブジェクトではない。
+_NOT_DOMAIN_ROOTS = frozenset(
+    {
+        "self",
+        "cls",
+        "args",
+        "kwargs",
+        "request",
+        "response",
+        "resp",
+        "result",
+        "settings",
+        "os",
+        "sys",
+        "path",
+        # 認証済みユーザーはフレームワークが持ち回る。
+        # `user.is_active` は Django User の属性であって業務判定ではない。
+        # 業務としてのユーザー状態は集約（UserAccount）が持つ。
+        "user",
+    }
+)
+
+
+def _unwrap_not(node: ast.expr) -> ast.expr:
+    """`not x` の x を取り出す（多重の not も剥がす）。"""
+    while isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+        node = node.operand
+    return node
+
+
+def _is_none_check(node: ast.expr) -> bool:
+    """`x is None` / `x is not None` の類か。"""
+    if not isinstance(node, ast.Compare):
+        return False
+    return any(isinstance(c, ast.Constant) and c.value is None for c in node.comparators)
+
+
+def _root_name(node: ast.expr) -> str | None:
+    """`a.b.c` の `a` を取り出す。"""
+    while isinstance(node, ast.Attribute):
+        node = node.value
+    return node.id if isinstance(node, ast.Name) else None
+
+
+def _is_domain_state_attr(attr: ast.Attribute) -> bool:
+    """その属性名は「業務上の状態」を表すか。"""
+    name = attr.attr
+    if name in _NOT_DOMAIN_ATTRS:
+        return False
+    if name.startswith(_DOMAIN_STATE_PREFIXES):
+        return True
+    return name in _DOMAIN_STATE_NAMES
+
+
+def _describes_domain_decision(test: ast.expr) -> bool:
+    """この条件式は「ドメインの状態を直接読んだ業務判定」か。
+
+    真を返すのは、以下を**すべて**満たす場合だけ:
+
+      - 条件式に呼び出しが無い（呼んでいるなら判定はその先が持っている）
+      - 読んでいる属性が業務状態を表す名前（`is_active` / `status` / `role` 等）
+      - レシーバがフレームワーク・手続きのものではない
+
+    ひとつでも欠ければ通す。**取りこぼすより誤検知しないことを優先する。**
+    """
+    node = _unwrap_not(test)
+
+    # 論理演算は各項を見る（どれか1つでも該当すれば違反とみなす）
+    if isinstance(node, ast.BoolOp):
+        return any(_describes_domain_decision(v) for v in node.values)
+
+    if _is_none_check(node):
+        return False
+
+    if any(isinstance(n, ast.Call) for n in ast.walk(node)):
+        # 呼び出しが混ざるなら判定はその先（ドメイン）にある。疑わしきは通す。
+        return False
+
+    for attr in (n for n in ast.walk(node) if isinstance(n, ast.Attribute)):
+        if not _is_domain_state_attr(attr):
+            continue
+        root = _root_name(attr)
+        if root is None or root in _NOT_DOMAIN_ROOTS:
+            continue
+        return True
+
+    return False
+
+
+def check_anemic_domain(files: list[Path]) -> list[Violation]:
+    out: list[Violation] = []
+    for path in files:
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            # if 文と条件式（三項演算子）の両方を見る
+            if not isinstance(node, ast.If | ast.IfExp):
+                continue
+            test = node.test
+            if not _describes_domain_decision(test):
+                continue
+            out.append(
+                Violation(
+                    rule="anemic-domain",
+                    path=path,
+                    lineno=test.lineno,
+                    message=(
+                        f"属性を直接読んで業務判定している: if {ast.unparse(test)}"
+                    ),
+                    hint=(
+                        "判定規則は集約/エンティティのメソッドへ移し、"
+                        "ここではその戻り値を使うこと"
+                    ),
+                )
+            )
+    return out
+
+
+# --------------------------------------------------------------------------
+# ルール2: 内側の層に外側の語彙を持ち込まない
+# --------------------------------------------------------------------------
+#
+# 「内側から外側へ書く」という**順序**は、コードからは分からない。
+# だが外側から書いた結果として現れる**痕跡**は分かる。
+#
+#     domain/exceptions.py に status_code = 401     ← HTTP の語彙が内側に来ている
+#
+# 識別子で判定する。裸の数値（401 等）は見ない —— 業務上の上限値
+# （bio は 500 文字まで、等）と区別できず、誤検知の温床になるため。
+
+_HTTP_NAMES = frozenset(
+    {
+        "status_code",
+        "status",
+        "HttpResponse",
+        "JsonResponse",
+        "HttpRequest",
+        "HTTP_200_OK",
+        "HTTP_201_CREATED",
+        "HTTP_400_BAD_REQUEST",
+        "HTTP_401_UNAUTHORIZED",
+        "HTTP_403_FORBIDDEN",
+        "HTTP_404_NOT_FOUND",
+        "HTTP_500_INTERNAL_SERVER_ERROR",
+    }
+)
+
+_PRESENTATION_NAMES = frozenset(
+    {
+        "serializer",
+        "Serializer",
+        "to_json",
+        "as_json",
+        "render",
+    }
+)
+
+# status は enum の状態名としても普通に使うため、
+# HTTP の語彙とみなすのは「HTTP らしい文脈」に限る。
+_STATUS_IS_HTTP_ONLY_WITH = frozenset({"code", "http"})
+
+
+def _iter_named_nodes(tree: ast.AST):
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name):
+            yield node, node.id
+        elif isinstance(node, ast.Attribute):
+            yield node, node.attr
+        elif isinstance(node, ast.arg):
+            yield node, node.arg
+        elif isinstance(node, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
+            yield node, node.name
+
+
+def check_outward_vocabulary(files: list[Path], layer: str) -> list[Violation]:
+    out: list[Violation] = []
+    for path in files:
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except SyntaxError:
+            continue
+        for node, name in _iter_named_nodes(tree):
+            kind = None
+            if name in _HTTP_NAMES:
+                # 単独の "status" は業務上の状態名でもあるため除外する
+                if name == "status":
+                    continue
+                kind = "HTTP の語彙"
+            elif name in _PRESENTATION_NAMES:
+                kind = "表現（シリアライズ）の都合"
+            if kind is None:
+                continue
+            out.append(
+                Violation(
+                    rule="outward-vocabulary",
+                    path=path,
+                    lineno=getattr(node, "lineno", 1),
+                    message=f"{layer} に{kind}が現れている: {name}",
+                    hint=(
+                        "HTTP ステータスへの変換は interfaces 層の仕事。"
+                        "内側はドメインの語彙（例外・エラー型）だけで表現すること"
+                    ),
+                )
+            )
+    return out
+
+
+# --------------------------------------------------------------------------
+# ルール3: 公開面を増やしすぎない（予算方式）
+# --------------------------------------------------------------------------
+#
+# 「増やしすぎ」は主観だが、**増えたこと自体は機械的に分かる**。
+# 上限をここに固定し、超えたら落とす。
+#
+# 増やすときは、この数値の変更がコミットに含まれる。
+# つまり「公開面を広げた」という事実が必ずレビューに乗る。
+# 気づいたら肥大していた、を防ぐのが狙い。
+
+_PUBLIC_SURFACE_BUDGET = {
+    # ユースケースの公開メソッドは execute() だけ、という規約の機械化。
+    # 増やすなら「1ユースケース1クラス」を守れているか先に疑うこと。
+    "application/usecases": 1,
+}
+
+
+def check_public_surface() -> list[Violation]:
+    out: list[Violation] = []
+    for rel, budget in _PUBLIC_SURFACE_BUDGET.items():
+        for path in sorted((SRC / rel).rglob("*.py")):
+            if path.name == "__init__.py":
+                continue
+            try:
+                tree = ast.parse(path.read_text(encoding="utf-8"))
+            except SyntaxError:
+                continue
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.ClassDef):
+                    continue
+                public = [
+                    m
+                    for m in node.body
+                    if isinstance(m, ast.FunctionDef | ast.AsyncFunctionDef)
+                    and not m.name.startswith("_")
+                ]
+                if len(public) > budget:
+                    names = ", ".join(m.name for m in public)
+                    out.append(
+                        Violation(
+                            rule="public-surface",
+                            path=path,
+                            lineno=node.lineno,
+                            message=(
+                                f"{node.name} の公開メソッドが {len(public)} 個"
+                                f"（上限 {budget}）: {names}"
+                            ),
+                            hint=(
+                                "1ユースケース1クラス・公開は execute() のみ。"
+                                "手順が増えたならユースケースを分けること"
+                            ),
+                        )
+                    )
+    return out
+
+
+# --------------------------------------------------------------------------
+
+
+def _py_files(rel: str) -> list[Path]:
+    base = SRC / rel
+    if not base.exists():
+        return []
+    return sorted(p for p in base.rglob("*.py") if p.name != "__init__.py")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--json", action="store_true", help="機械可読な出力")
+    args = parser.parse_args()
+
+    violations: list[Violation] = []
+
+    # ドメイン判定の漏れは「ユースケース層」で起きる
+    violations += check_anemic_domain(_py_files("application/usecases"))
+
+    # 外側の語彙は最内層ほど致命的なので domain と application を見る
+    violations += check_outward_vocabulary(_py_files("domain"), "domain")
+    violations += check_outward_vocabulary(_py_files("application"), "application")
+
+    violations += check_public_surface()
+
+    if args.json:
+        print(
+            json.dumps(
+                [
+                    {
+                        "rule": v.rule,
+                        "path": str(v.path.relative_to(ROOT)),
+                        "line": v.lineno,
+                        "message": v.message,
+                    }
+                    for v in violations
+                ],
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 1 if violations else 0
+
+    if not violations:
+        print("設計チェック: OK（違反なし）")
+        return 0
+
+    print(f"設計チェック: {len(violations)} 件の違反")
+    for v in violations:
+        print(v.format())
+    print()
+    print("規約の根拠: .claude/rules/10-django-ddd.md")
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

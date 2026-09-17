@@ -44,9 +44,14 @@ migrate: ## Django のマイグレーション
 ## ── 規約検証（CI と同じ内容）──────────────────────────────
 verify: verify-django verify-laravel verify-go verify-hanami verify-dotnet verify-front ## 全スタックの層検証 + 静的解析 + テスト
 
-verify-django: ## Django: 層検証(import-linter) + ruff + mypy + pytest
+verify-django: ## Django: 層検証(import-linter) + 設計検証 + ruff + mypy + pytest
 	@echo "==> Django DDD 層検証"
 	$(DC) run --rm -e PYTHONPATH=src django lint-imports --config .importlinter
+	@echo "==> Django DDD 設計検証"
+	# import-linter が見るのは「どの層が何を import したか」だけ。
+	# ドメイン判定が UseCase に漏れていても、層は越えていないので通ってしまう。
+	# そこを落とす（貧血症 / 内側への外側語彙の混入 / 公開面の肥大）。
+	$(DC) run --rm django python3 bin/verify-design
 	$(DC) run --rm django ruff check src tests
 	$(DC) run --rm django mypy src
 	$(DC) run --rm django pytest tests

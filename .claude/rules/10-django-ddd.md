@@ -1,7 +1,12 @@
 # 10. Django — DDD 構成ルール
 
 対象: `services/django-ddd/`
-検証: `import-linter`（`.importlinter`）+ ruff + mypy
+検証: `import-linter`（`.importlinter`）+ `bin/verify-design` + ruff + mypy
+
+> **検証は 2 種類ある。** `import-linter` が見るのは「どの層が何を import したか」だけ。
+> 下記のうち **import に表れないもの**（集約の不変条件が UseCase の `if` に漏れる、
+> 内側に HTTP の語彙が来る、公開面が肥大する）は `bin/verify-design` が落とす。
+> 層を越えていなくても、それは規約違反である。
 
 ## DDD の戦術的パターン（この構成の語彙）
 
@@ -112,6 +117,12 @@ services/django-ddd/src/
 - ❌ 集約の内部エンティティ（`Profile`）を集約の外から直接書き換える
 - ❌ 内部エンティティ専用の Repository を作る（Repository は集約ルート単位）
 - ❌ 集約の不変条件を UseCase 側の `if` で書く（ドメインが貧血症になる）
+  → `bin/verify-design` が検知する。判定は「属性を直接読んで分岐しているか」で、
+     `if not account.user.can_sign_in()` のようにメソッドへ委譲していれば通る
+- ❌ `domain` / `application` に HTTP の語彙（`status_code` 等）を持ち込む
+  → `bin/verify-design` が検知する。変換は `interfaces` 層の仕事
+- ❌ ユースケースに `execute()` 以外の公開メソッドを生やす
+  → `bin/verify-design` が検知する。手順が増えたならユースケースを分ける
 
 ## 実装規約
 
