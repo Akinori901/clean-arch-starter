@@ -405,7 +405,7 @@ AI は与えられたタスクを最短で満たそうとするため、
 「UseCase から Model を直接呼べば動く」場面では、実際にそう書きます。
 **それを人間のレビューだけで止め続けるのは現実的ではありません。**
 
-そこで二重に縛ります。
+そこで **規約を読ませ（rules）・手順を踏ませ（skill）・CI で落とす**、の三段で縛ります。
 
 ### 1. 実装前に読ませる（`.claude/rules/`）
 
@@ -424,7 +424,30 @@ AI は与えられたタスクを最短で満たそうとするため、
 AI は新しいファイルを作る前に、**そのファイルがどの層に属するかを宣言**します。
 層が決まらないファイルは、まだ設計が終わっていないということです。
 
-### 2. 書かせた後に落とす（CI）
+### 2. 手順を踏ませる（`.claude/skills/scaffold-clean-arch/`）
+
+ルールは「何が禁止か」を定めますが、**それだけでは
+AI が書き始める順序までは決まりません**。外側（View / Controller）から書き始めると、
+内側を「外側の都合」に合わせるのが最短になり、層を壊す誘因がそこで生まれます。
+
+[`scaffold-clean-arch`](.claude/skills/scaffold-clean-arch/SKILL.md) は、
+コードを 1 行も書く前に **どの層に属するか**を宣言させ、
+エンティティ → 契約 → ユースケース → 実装 → 接点 → 組立点の順に、
+**内側から外側へ**書かせます。命名規約と検証コマンドもこの手順に含まれます。
+
+Claude Code では、このリポジトリで作業を頼むと自動で起動します。
+
+| ファイル | 内容 |
+|---|---|
+| [`SKILL.md`](.claude/skills/scaffold-clean-arch/SKILL.md) | 全スタック共通の手順・層の判定表・禁止事項 |
+| [`references/django.md`](.claude/skills/scaffold-clean-arch/references/django.md) | 集約の扱い・import-linter の 6 契約 |
+| [`references/laravel.md`](.claude/skills/scaffold-clean-arch/references/laravel.md) | deptrac・命名が検証そのものである理由 |
+| [`references/go.md`](.claude/skills/scaffold-clean-arch/references/go.md) | interface は使う側・go-arch-lint |
+| [`references/hanami.md`](.claude/skills/scaffold-clean-arch/references/hanami.md) | Struct と Entity の別・Dry::Operation |
+| [`references/dotnet.md`](.claude/skills/scaffold-clean-arch/references/dotnet.md) | ProjectReference + NetArchTest の二段構え |
+| [`references/react.md`](.claude/skills/scaffold-clean-arch/references/react.md) | feature 境界・shared へ引き上げる判断 |
+
+### 3. 書かせた後に落とす（CI）
 
 ルールを読ませても、AI は時々破ります。**破ったら CI が落ちます。**
 
