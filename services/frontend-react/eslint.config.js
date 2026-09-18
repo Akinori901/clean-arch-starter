@@ -22,9 +22,9 @@ export default tseslint.config(
       // 相対パス（`../../auth/...`）だけが no-restricted-imports で拾われており、
       // **規約が推奨している `@/` 記法のほうが検証されていなかった。**
       //
-      // `node: true` も必要。これが無いと相対パスや node_modules の解決を
-      // typescript resolver だけに任せることになり、解決に失敗した依存が
-      // 「型不明」として素通りしうる。
+      // `node: true` は typescript resolver が扱わない解決（拡張子なしの
+      // 相対 import 等）への保険。**無くても境界検証は効く**ことは実測済みで、
+      // 付けているのは将来 node_modules を参照する依存が増えたときのため。
       'import/resolver': {
         typescript: { project: './tsconfig.json' },
         node: true,

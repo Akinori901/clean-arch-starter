@@ -47,14 +47,13 @@ boundaries は import 先のパスを**解決してから**要素（feature / sh
 ```js
 'import/resolver': {
   typescript: { project: './tsconfig.json' },
-  node: true,   // これも要る（相対パス・node_modules の解決）
+  node: true,   // 保険（無くても境界検証は効くことを実測済み）
 },
 ```
 
 `eslint-import-resolver-typescript` と `eslint-plugin-import` が
 devDependencies に必要。**設定を変えたら、違反を注入して実際に落ちることを
 必ず確認すること。**
-
 
 - ❌ `shared/` から `features/` を import する（共有物が機能に依存してはならない）
 - ❌ `features/A/` から `features/B/` の内部を import する
