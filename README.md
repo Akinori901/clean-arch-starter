@@ -35,6 +35,38 @@ AI は「動くコード」を最短で書こうとするため、放ってお�
 **どの検証も「違反を注入したら実際に落ちること」を確認済みです。**
 落ちないルールは、書いていないのと同じだからです。
 
+<details>
+<summary>全スタックの注入テスト結果</summary>
+
+| スタック | 注入した違反（再現用） | 結果 |
+|---|---|---|
+| Django | `application` が `domain.aggregates.profile` と `infrastructure...models` を import | 3 contracts BROKEN |
+| Django | `if not account.user.is_active` に書き換え | `verify-design` が `anemic-domain` を検知 |
+| Django | `domain/exceptions.py` に `status_code = 401` | `outward-vocabulary` を検知 |
+| Laravel | UseCase で `use App\Models\User;` | deptrac Violations 1 |
+| Laravel | `if (! $user->isActive)` に書き換え | PHPStan が `cleanArch.domainDecisionInUseCase` を検知 |
+| Go | `internal/entity/user.go` に `github.com/aws/smithy-go` を import | go-arch-lint が検知 |
+| Hanami | `domain/errors.rb` に `Aws::` 参照 + Operation が `AppCore::Structs::` 露出 | 2 件検知・exit=1 |
+| .NET | `Domain` に `DbContext` を継承する型を追加 | `Domain_はEFCoreに依存しない` が失敗 |
+| .NET | `Domain.csproj` に `ProjectReference` を追加 | ビルドが循環依存エラー（MSB4006） |
+| React | `features/health` から `@/features/auth/api/authApi` を import | boundaries が検知 |
+| React | `shared/api/httpClient.ts` から `@/features/auth/...` を import | boundaries が検知 |
+
+いずれも注入後に復元し、green に戻ることまで確認しています。
+
+**この過程で 2 つの穴が見つかりました。**
+
+- フロントの境界検証が `import/resolver` 未設定で**素通りしていた**
+  （`@/` 記法の違反を検知できず、相対パスだけが別ルールで拾われていた）
+- NetArchTest は**型が実際に使われて初めて落ちる**。
+  `PackageReference` を足しただけでは通る（`70-dotnet-clean.md` に明記）
+
+上表のうち **Laravel の `cleanArch.domainDecisionInUseCase` と
+React の boundaries 検知は、それぞれの修正が入って初めて成立します。**
+この 2 つは同時に出している別 PR で、マージ順序に依存します。
+
+</details>
+
 ## 何が入っているか
 
 Cognito 認証（サインイン / 現在ユーザー取得）とヘルスチェックを、
