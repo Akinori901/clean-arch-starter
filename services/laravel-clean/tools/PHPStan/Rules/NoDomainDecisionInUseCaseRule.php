@@ -9,6 +9,7 @@ use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\BinaryOp;
 use PhpParser\Node\Expr\BooleanNot;
 use PhpParser\Node\Expr\PropertyFetch;
+use PhpParser\Node\Stmt;
 use PhpParser\Node\Stmt\If_;
 use PHPStan\Analyser\Scope;
 use PHPStan\Rules\Rule;
@@ -30,7 +31,7 @@ use PHPStan\Rules\RuleErrorBuilder;
  * 検証はオオカミ少年になった時点で死ぬ（誰も読まなくなり、やがて無効化される）。
  * そのため「業務状態を表す名前」かつ「呼び出しを含まない」条件だけを落とす。
  *
- * @implements Rule<If_>
+ * @implements Rule<Node>
  */
 final class NoDomainDecisionInUseCaseRule implements Rule
 {
@@ -45,8 +46,12 @@ final class NoDomainDecisionInUseCaseRule implements Rule
     private const DOMAIN_STATE_NAMES = [
         'active', 'enabled', 'disabled', 'deleted', 'expired',
         'approved', 'rejected', 'published', 'locked', 'suspended',
-        'status', 'state', 'role', 'plan', 'tier',
+        'role', 'plan', 'tier',
     ];
+
+    // `status` / `state` は**入れない**。
+    // PHP・HTTP の文脈では手続きの状態（$resp->status / $cfg->state）が
+    // 圧倒的に多く、実測で誤検知した。取りこぼしより誤検知を避ける。
 
     /**
      * 名前が上の条件に当てはまっても業務判定ではないもの。
@@ -54,11 +59,32 @@ final class NoDomainDecisionInUseCaseRule implements Rule
      */
     private const NOT_DOMAIN_NAMES = [
         'statusCode', 'isValid', 'isEmpty', 'isFile', 'isDir',
+        'isAuthenticated', 'isGuest', 'isDirty', 'isClean',
     ];
 
+    /**
+     * レシーバがこれらなら、ドメインの値ではない。
+     * フレームワークの提供物・手続きの都合。
+     *
+     * **`$user` は入れない。** このリポジトリの `UserDto` は `canSignIn()` を
+     * 自前で持つドメインの値であり、`$user->isActive` を直接読むのは規約違反。
+     * （Django 版は `user` が Django の User モデルなので除外している。
+     *   同じ名前でも正体が違うため、判定も異なる）
+     */
+    private const NOT_DOMAIN_RECEIVERS = [
+        'request', 'response', 'resp', 'result', 'config', 'settings',
+        'options', 'opts', 'client', 'logger',
+    ];
+
+    /**
+     * 条件分岐は if だけではない。
+     * 三項演算子・match・while・elseif も同じ抜け道になるため、
+     * Node 全体を受けてから条件式を取り出す。
+     * （if だけを見ていたとき、`$x = $user->isActive ? 1 : 0;` が素通りした）
+     */
     public function getNodeType(): string
     {
-        return If_::class;
+        return Node::class;
     }
 
     /**
@@ -71,7 +97,8 @@ final class NoDomainDecisionInUseCaseRule implements Rule
             return [];
         }
 
-        if (! $this->describesDomainDecision($node->cond)) {
+        $cond = $this->conditionOf($node);
+        if ($cond === null || ! $this->describesDomainDecision($cond)) {
             return [];
         }
 
@@ -85,6 +112,33 @@ final class NoDomainDecisionInUseCaseRule implements Rule
                 ->tip('規約の根拠: .claude/rules/20-laravel-clean.md')
                 ->build(),
         ];
+    }
+
+    /**
+     * 条件分岐のノードから「判定に使われている式」を取り出す。
+     * 該当しないノードなら null。
+     */
+    private function conditionOf(Node $node): ?Expr
+    {
+        if ($node instanceof If_ || $node instanceof Stmt\ElseIf_) {
+            return $node->cond;
+        }
+        if ($node instanceof Stmt\While_ || $node instanceof Stmt\Do_) {
+            return $node->cond;
+        }
+        if ($node instanceof Expr\Ternary) {
+            return $node->cond;
+        }
+        if ($node instanceof Expr\Match_) {
+            return $node->cond;
+        }
+        // 変数へ入れてから if する形も拾う（AI が自然に書く抜け道）
+        //   $inactive = ! $user->isActive;  if ($inactive) { ... }
+        if ($node instanceof Expr\Assign && $node->expr instanceof Expr) {
+            return $node->expr;
+        }
+
+        return null;
     }
 
     /**
@@ -193,6 +247,13 @@ final class NoDomainDecisionInUseCaseRule implements Rule
 
         // $this->... は自身の依存であって、ドメインの状態ではない
         if ($fetch->var instanceof Expr\Variable && $fetch->var->name === 'this') {
+            return false;
+        }
+
+        // フレームワーク・手続きのオブジェクトなら業務判定ではない
+        if ($fetch->var instanceof Expr\Variable
+            && is_string($fetch->var->name)
+            && in_array($fetch->var->name, self::NOT_DOMAIN_RECEIVERS, true)) {
             return false;
         }
 

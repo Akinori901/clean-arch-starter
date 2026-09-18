@@ -133,12 +133,17 @@ _NOT_DOMAIN_ROOTS = frozenset(
         "os",
         "sys",
         "path",
-        # 認証済みユーザーはフレームワークが持ち回る。
-        # `user.is_active` は Django User の属性であって業務判定ではない。
-        # 業務としてのユーザー状態は集約（UserAccount）が持つ。
-        "user",
     }
 )
+
+# `user` は**除外しない**。
+# このリポジトリで UseCase が触る `user` は集約の内部エンティティ
+# （`account.user`）であって、Django の User モデルではない。
+# `account.user.is_active` を直接読めば、それは集約が守るべき規則を
+# UseCase が持ってしまったということ。Laravel 版（UserDto）も同じ判定にしてある。
+#
+# Django の `request.user` を触るのは interfaces 層であり、
+# この検証の対象（application/usecases）ではない。
 
 
 def _unwrap_not(node: ast.expr) -> ast.expr:
