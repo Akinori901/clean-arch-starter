@@ -56,10 +56,14 @@ verify-django: ## Django: 層検証(import-linter) + 設計検証 + ruff + mypy 
 	$(DC) run --rm django mypy src
 	$(DC) run --rm django pytest tests
 
-verify-laravel: ## Laravel: 層検証(deptrac) + PHPStan + PHPUnit
+verify-laravel: ## Laravel: 層検証(deptrac) + PHPStan(設計検証込み) + PHPUnit
 	@echo "==> Laravel クリーンアーキ層検証"
 	$(DC) run --rm laravel ./vendor/bin/deptrac analyse --config-file=depfile.yaml
-	$(DC) run --rm laravel ./vendor/bin/phpstan analyse --no-progress
+	# PHPStan には設計検証のカスタムルールを積んである
+	# （deptrac が見られない「UseCase が属性を読んで業務判定していないか」）。
+	# --memory-limit は必須。既定の 128M ではワーカーがクラッシュし、
+	# 型エラーではなく「PHPStan process crashed」で解析が完走しない。
+	$(DC) run --rm laravel ./vendor/bin/phpstan analyse --no-progress --memory-limit=512M
 	$(DC) run --rm laravel ./vendor/bin/phpunit --testsuite Unit
 
 verify-go: ## Go: 層検証(go-arch-lint) + vet + test

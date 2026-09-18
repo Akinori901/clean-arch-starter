@@ -1,7 +1,12 @@
 # 20. Laravel — クリーンアーキテクチャ構成ルール
 
 対象: `services/laravel-clean/`
-検証: `deptrac`（`depfile.yaml`）+ PHPStan
+検証: `deptrac`（`depfile.yaml`）+ PHPStan（設計検証のカスタムルール込み）
+
+> **検証は 2 種類ある。** `deptrac` が見るのは「どの層がどの層を参照したか」だけ。
+> **層を越えていなくても規約違反はありうる** —— 例えば UseCase が Dto の
+> プロパティを読んで可否を決めれば、ビジネスロジックが Service から漏れている。
+> そこは PHPStan のカスタムルール（`tools/PHPStan/Rules/`）が落とす。
 
 > この規約は [clean-arch-laravel](https://github.com/Akinori901/clean-arch-laravel) を
 > 本リポジトリのサンプル（Cognito 認証・ヘルスチェック）に合わせて具体化したもの。
@@ -71,6 +76,9 @@ services/laravel-clean/app/
 - ❌ Service が別の Service を呼ぶ
 - ❌ Repository が Eloquent Model / Collection をそのまま返す
 - ❌ Formatter が `JsonResponse` を返す
+- ❌ UseCase が Dto のプロパティを読んで業務判定する（例: `if (! $user->isActive)`）
+  → PHPStan のカスタムルールが検知する。判定は Service のメソッド
+     （例: `$this->auth->assertCanSignIn($user)`）へ移し、UseCase はその結果を使う
 
 ## Repository の命名判別
 
