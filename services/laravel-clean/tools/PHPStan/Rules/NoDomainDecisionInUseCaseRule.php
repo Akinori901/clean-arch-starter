@@ -72,9 +72,16 @@ final class NoDomainDecisionInUseCaseRule implements Rule
      *   同じ名前でも正体が違うため、判定も異なる）
      */
     private const NOT_DOMAIN_RECEIVERS = [
-        'request', 'response', 'resp', 'result', 'config', 'settings',
+        'request', 'response', 'resp', 'config', 'settings',
         'options', 'opts', 'client', 'logger',
     ];
+
+    // `result` は**入れない**。
+    // `$result = $user; if ($result->isActive)` と書くだけで回避できてしまう。
+    // ユースケース内で最も自然に使われる変数名のひとつなので、
+    // 除外リストに載せると抜け道そのものになる。
+    // 上のリストは「その名前なら中身がフレームワークの物だと断定できる」
+    // ものだけに限ること。
 
     /**
      * 条件分岐は if だけではない。
@@ -131,6 +138,18 @@ final class NoDomainDecisionInUseCaseRule implements Rule
         }
         if ($node instanceof Expr\Match_) {
             return $node->cond;
+        }
+        if ($node instanceof Stmt\Switch_) {
+            return $node->cond;
+        }
+        // `match (true) { $user->isActive => ... }` の arm 側。
+        // match の cond だけを見ていると、この書き方で抜けられる。
+        if ($node instanceof Node\MatchArm && $node->conds !== null) {
+            foreach ($node->conds as $armCond) {
+                if ($this->describesDomainDecision($armCond)) {
+                    return $armCond;
+                }
+            }
         }
         // 変数へ入れてから if する形も拾う（AI が自然に書く抜け道）
         //   $inactive = ! $user->isActive;  if ($inactive) { ... }

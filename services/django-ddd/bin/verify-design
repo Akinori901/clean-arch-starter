@@ -128,7 +128,6 @@ _NOT_DOMAIN_ROOTS = frozenset(
         "request",
         "response",
         "resp",
-        "result",
         "settings",
         "os",
         "sys",
@@ -136,6 +135,13 @@ _NOT_DOMAIN_ROOTS = frozenset(
     }
 )
 
+# `result` も**除外しない**。
+# `result = account; if result.user.is_active` と書くだけで回避できてしまう。
+# ユースケース内で最も自然に使われる変数名のひとつなので、
+# 除外リストに載せると抜け道そのものになる。
+# このリストは「その名前なら中身がフレームワークの物だと断定できる」
+# ものだけに限ること。
+#
 # `user` は**除外しない**。
 # このリポジトリで UseCase が触る `user` は集約の内部エンティティ
 # （`account.user`）であって、Django の User モデルではない。
