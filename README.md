@@ -35,6 +35,33 @@ AI は「動くコード」を最短で書こうとするため、放ってお�
 **どの検証も「違反を注入したら実際に落ちること」を確認済みです。**
 落ちないルールは、書いていないのと同じだからです。
 
+<details>
+<summary>全スタックの注入テスト結果</summary>
+
+| スタック | 注入した違反 | 結果 |
+|---|---|---|
+| Django | 集約の内部エンティティを直接参照 + Model 漏れ | 3 contracts BROKEN |
+| Django | UseCase に属性ベースの業務判定 | `verify-design` が検知 |
+| Laravel | UseCase から Model を use | deptrac Violations 1 |
+| Laravel | UseCase に `if (! $user->isActive)` | PHPStan カスタムルールが検知 |
+| Go | `entity` に AWS SDK を import | go-arch-lint が検知 |
+| Hanami | `domain` に AWS + Operation が Struct 露出 | 2 件検知・exit=1 |
+| .NET | `Domain` が `DbContext` を継承 | NetArchTest が失敗 |
+| .NET | `Domain.csproj` に `ProjectReference` | ビルドが循環依存エラー |
+| React | feature 間の相互参照（`@/` 経由） | boundaries が検知 |
+| React | `shared` → `feature` の逆流 | boundaries が検知 |
+
+いずれも注入後に復元し、green に戻ることまで確認しています。
+
+**この過程で 2 つの穴が見つかり、修正しました。**
+
+- フロントの境界検証が `import/resolver` 未設定で**素通りしていた**
+  （`@/` 記法の違反を検知できず、相対パスだけが別ルールで拾われていた）
+- NetArchTest は**型が実際に使われて初めて落ちる**。
+  `PackageReference` を足しただけでは通る（`70-dotnet-clean.md` に明記）
+
+</details>
+
 ## 何が入っているか
 
 Cognito 認証（サインイン / 現在ユーザー取得）とヘルスチェックを、

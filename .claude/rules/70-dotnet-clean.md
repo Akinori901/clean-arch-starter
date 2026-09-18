@@ -109,6 +109,21 @@ services/dotnet-clean/
 
 どちらも**違反を注入したら実際に落ちることを確認済み**。
 
+### NetArchTest の限界（実測）
+
+**NetArchTest は「型が実際に使われているか」を見る。**
+`PackageReference` を足しただけでは**落ちない**（IL に参照が現れないため）。
+
+| 注入したもの | 結果 |
+|---|---|
+| `Domain.csproj` に `PackageReference` を足すだけ | **通ってしまう**（build も test も成功） |
+| そのうえで `Domain` が `DbContext` を継承する型を持つ | `Domain_はEFCoreに依存しない` が失敗 |
+| `Domain.csproj` に `ProjectReference` を足す | `dotnet build` が循環依存エラー |
+
+実害が出るのは「型を使ったとき」なので運用上は問題にならないが、
+**「csproj を見て禁止パッケージが無いこと」までは保証していない**点は
+把握しておくこと。レビューでは csproj の差分も見る。
+
 ## users テーブルは共有物（重要）
 
 `users` は **Django が所有**し、既存 4 スタックと**同じ行を共有する**。
