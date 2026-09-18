@@ -45,7 +45,7 @@ AI は「動くコード」を最短で書こうとするため、放ってお�
 | Django | `domain/exceptions.py` に `status_code = 401` | `outward-vocabulary` を検知 |
 | Laravel | UseCase で `use App\Models\User;` | deptrac Violations 1 |
 | Laravel | `if (! $user->isActive)` に書き換え | PHPStan が `cleanArch.domainDecisionInUseCase` を検知 |
-| Go | `entity/user.go` に `github.com/aws/smithy-go` を import | go-arch-lint が検知 |
+| Go | `internal/entity/user.go` に `github.com/aws/smithy-go` を import | go-arch-lint が検知 |
 | Hanami | `domain/errors.rb` に `Aws::` 参照 + Operation が `AppCore::Structs::` 露出 | 2 件検知・exit=1 |
 | .NET | `Domain` に `DbContext` を継承する型を追加 | `Domain_はEFCoreに依存しない` が失敗 |
 | .NET | `Domain.csproj` に `ProjectReference` を追加 | ビルドが循環依存エラー（MSB4006） |

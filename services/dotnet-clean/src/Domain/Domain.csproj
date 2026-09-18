@@ -8,7 +8,12 @@
     ここに <ProjectReference> を 1 行足すと dotnet build がコンパイルエラーで落ちる。
 
     NuGet パッケージも入れないこと。EF Core / AWS SDK が入った時点で、
-    それはもうドメインではない（NetArchTest が二重に検知する）。
+    それはもうドメインではない。
+
+    **ただし PackageReference を足しただけでは CI は落ちない。**
+    NetArchTest は IL を見るため、型を実際に使って初めて参照が現れる
+    （実測で確認）。つまりこの行の規約は、レビューで csproj の差分を
+    見ることでしか守れない。パッケージを足す提案は必ず理由を確認すること。
   -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
