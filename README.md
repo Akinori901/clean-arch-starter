@@ -38,18 +38,19 @@ AI は「動くコード」を最短で書こうとするため、放ってお�
 <details>
 <summary>全スタックの注入テスト結果</summary>
 
-| スタック | 注入した違反 | 結果 |
+| スタック | 注入した違反（再現用） | 結果 |
 |---|---|---|
-| Django | 集約の内部エンティティを直接参照 + Model 漏れ | 3 contracts BROKEN |
-| Django | UseCase に属性ベースの業務判定 | `verify-design` が検知 |
-| Laravel | UseCase から Model を use | deptrac Violations 1 |
-| Laravel | UseCase に `if (! $user->isActive)` | PHPStan カスタムルールが検知 |
-| Go | `entity` に AWS SDK を import | go-arch-lint が検知 |
-| Hanami | `domain` に AWS + Operation が Struct 露出 | 2 件検知・exit=1 |
-| .NET | `Domain` が `DbContext` を継承 | NetArchTest が失敗 |
-| .NET | `Domain.csproj` に `ProjectReference` | ビルドが循環依存エラー |
-| React | feature 間の相互参照（`@/` 経由） | boundaries が検知 |
-| React | `shared` → `feature` の逆流 | boundaries が検知 |
+| Django | `application` が `domain.aggregates.profile` と `infrastructure...models` を import | 3 contracts BROKEN |
+| Django | `if not account.user.is_active` に書き換え | `verify-design` が `anemic-domain` を検知 |
+| Django | `domain/exceptions.py` に `status_code = 401` | `outward-vocabulary` を検知 |
+| Laravel | UseCase で `use App\Models\User;` | deptrac Violations 1 |
+| Laravel | `if (! $user->isActive)` に書き換え | PHPStan が `cleanArch.domainDecisionInUseCase` を検知 |
+| Go | `entity/user.go` に `github.com/aws/smithy-go` を import | go-arch-lint が検知 |
+| Hanami | `domain/errors.rb` に `Aws::` 参照 + Operation が `AppCore::Structs::` 露出 | 2 件検知・exit=1 |
+| .NET | `Domain` に `DbContext` を継承する型を追加 | `Domain_はEFCoreに依存しない` が失敗 |
+| .NET | `Domain.csproj` に `ProjectReference` を追加 | ビルドが循環依存エラー（MSB4006） |
+| React | `features/health` から `@/features/auth/api/authApi` を import | boundaries が検知 |
+| React | `shared/api/httpClient.ts` から `@/features/auth/...` を import | boundaries が検知 |
 
 いずれも注入後に復元し、green に戻ることまで確認しています。
 
