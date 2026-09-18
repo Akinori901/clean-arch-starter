@@ -33,6 +33,9 @@ services/dotnet-clean/**/[Bb]in/
 services/dotnet-clean/**/[Oo]bj/
 
 # ツールのキャッシュ
+# deptrac のキャッシュは解析のたびに書き換わる。追跡していると
+# `make verify-laravel` を流すだけで差分が出て、レビューの邪魔になる。
+.deptrac.cache
 .ruff_cache/
 .mypy_cache/
 .pytest_cache/

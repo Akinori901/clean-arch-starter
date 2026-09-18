@@ -84,8 +84,12 @@ jobs:
       - name: 層の依存方向を検証（deptrac）
         run: ./vendor/bin/deptrac analyse --config-file=depfile.yaml
 
-      - name: 静的解析（PHPStan）
-        run: ./vendor/bin/phpstan analyse --no-progress
+      # PHPStan には設計検証のカスタムルールを積んである。
+      # deptrac が見るのは「どの層がどの層を参照したか」だけなので、
+      # 層を越えずに UseCase がプロパティで業務判定していても通ってしまう。
+      # --memory-limit は必須（既定 128M ではワーカーがクラッシュする）。
+      - name: 静的解析 + 設計検証（PHPStan）
+        run: ./vendor/bin/phpstan analyse --no-progress --memory-limit=512M
 
       - name: テスト
         run: ./vendor/bin/phpunit --testsuite Unit

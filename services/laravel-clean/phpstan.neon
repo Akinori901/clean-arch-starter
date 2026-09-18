@@ -14,3 +14,14 @@ parameters:
     # checkMissingIterableValueType は PHPStan 2.x で廃止された
     # （level 6 以上に統合されたため、level 8 なら自動的に検査される）。
     treatPhpDocTypesAsCertain: false
+
+services:
+    # deptrac が見るのは「どの層がどの層を参照したか」だけで、
+    # 層を越えていない限り通る。だが規約が守りたいのは
+    # 「ビジネスロジックは Service が持つ」ことであり、
+    # UseCase が Dto のプロパティを読んで可否を決めた時点で崩れている。
+    # そこを落とす（import では表れない違反）。
+    -
+        class: Tools\PHPStan\Rules\NoDomainDecisionInUseCaseRule
+        tags:
+            - phpstan.rules.rule

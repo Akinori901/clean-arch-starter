@@ -24,12 +24,13 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "Tests\\": "tests/"
+            "Tests\\": "tests/",
+            "Tools\\PHPStan\\": "tools/PHPStan/"
         }
     },
     "scripts": {
         "verify:layers": "deptrac analyse --config-file=depfile.yaml",
-        "verify:static": "phpstan analyse",
+        "verify:static": "phpstan analyse --memory-limit=512M",
         "verify": [
             "@verify:layers",
             "@verify:static",

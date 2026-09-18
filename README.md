@@ -26,7 +26,7 @@ AI は「動くコード」を最短で書こうとするため、放ってお�
 | スタック | 構成 | 検証ツール |
 |---|---|---|
 | **Django** | DDD | import-linter + `bin/verify-design` |
-| **Laravel** | クリーンアーキテクチャ | deptrac |
+| **Laravel** | クリーンアーキテクチャ | deptrac + PHPStan カスタムルール |
 | **Go** | クリーンアーキテクチャ | go-arch-lint |
 | **Hanami** (Ruby) | クリーンアーキテクチャ | `bin/verify-layers` |
 | **C#** (.NET) | クリーンアーキテクチャ | ProjectReference + NetArchTest |
@@ -93,7 +93,7 @@ curl -X POST localhost:8000/api/auth/sign-in \
 | スタック | 規約 | 検証ツール | 設定ファイル |
 |---|---|---|---|
 | Django | [`10-django-ddd.md`](.claude/rules/10-django-ddd.md) | import-linter + 設計検証 | `services/django-ddd/.importlinter` / `services/django-ddd/bin/verify-design` |
-| Laravel | [`20-laravel-clean.md`](.claude/rules/20-laravel-clean.md) | deptrac | `services/laravel-clean/depfile.yaml` |
+| Laravel | [`20-laravel-clean.md`](.claude/rules/20-laravel-clean.md) | deptrac + 設計検証 | `services/laravel-clean/depfile.yaml` / `services/laravel-clean/tools/PHPStan/Rules/` |
 | React | [`30-frontend.md`](.claude/rules/30-frontend.md) | eslint-plugin-boundaries | `services/frontend-react/eslint.config.js` |
 | Go | [`50-go-clean.md`](.claude/rules/50-go-clean.md) | go-arch-lint | `services/go-clean/.go-arch-lint.yml` |
 | Hanami | [`60-hanami-clean.md`](.claude/rules/60-hanami-clean.md) | 専用スクリプト | `services/hanami-clean/bin/verify-layers` |
