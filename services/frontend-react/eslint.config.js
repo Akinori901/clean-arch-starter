@@ -13,6 +13,22 @@ export default tseslint.config(
     files: ['src/**/*.{ts,tsx}'],
     plugins: { boundaries },
     settings: {
+      // **この resolver が無いと境界検証が素通りする。**
+      // boundaries は import 先のパスを解決してから要素（feature / shared 等）を
+      // 判定するため、`@/features/...` のエイリアスを解決できないと
+      // 「どの要素か不明」となり、違反を検知できない。
+      //
+      // 実際に feature 間の相互参照を注入しても落ちなかった。
+      // 相対パス（`../../auth/...`）だけが no-restricted-imports で拾われており、
+      // **規約が推奨している `@/` 記法のほうが検証されていなかった。**
+      //
+      // `node: true` は typescript resolver が扱わない解決（拡張子なしの
+      // 相対 import 等）への保険。**無くても境界検証は効く**ことは実測済みで、
+      // 付けているのは将来 node_modules を参照する依存が増えたときのため。
+      'import/resolver': {
+        typescript: { project: './tsconfig.json' },
+        node: true,
+      },
       'boundaries/elements': [
         { type: 'app', pattern: 'src/app/**' },
         // feature 名を capture して、feature 同士の相互参照を判定する

@@ -30,7 +30,30 @@ services/frontend-react/src/
 └── config/         # 環境変数の読み込み・型付け
 ```
 
-## 依存ルール（構造チェッカが強制）
+## 依存ルール（eslint-plugin-boundaries が強制）
+
+### 設定上の注意（実際に踏んだ）
+
+**`import/resolver` の設定が無いと、境界検証は素通りする。**
+
+boundaries は import 先のパスを**解決してから**要素（feature / shared 等）を
+判定する。`@/features/...` のエイリアスを解決できないと「どの要素か不明」となり、
+違反を検知できない。
+
+この状態では、相対パス（`../../auth/...`）だけが `no-restricted-imports` で
+拾われ、**規約が推奨している `@/` 記法のほうが検証されない**という
+ねじれが起きる。実際に feature 間の相互参照を注入しても落ちなかった。
+
+```js
+'import/resolver': {
+  typescript: { project: './tsconfig.json' },
+  node: true,   // 保険（無くても境界検証は効くことを実測済み）
+},
+```
+
+`eslint-import-resolver-typescript` と `eslint-plugin-import` が
+devDependencies に必要。**設定を変えたら、違反を注入して実際に落ちることを
+必ず確認すること。**
 
 - ❌ `shared/` から `features/` を import する（共有物が機能に依存してはならない）
 - ❌ `features/A/` から `features/B/` の内部を import する

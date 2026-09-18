@@ -86,7 +86,16 @@ verify-dotnet: ## .NET: 層検証(ProjectReference + NetArchTest) + テスト
 
 verify-front: ## Frontend: 境界検証(eslint-boundaries) + 型検査
 	@echo "==> フロント境界検証"
-	$(DC) run --rm frontend npm run lint
+	# **npm ci を先に打つこと。** compose.yaml の匿名ボリューム
+	# （- /app/node_modules）により、コンテナはイメージ焼き込み時の
+	# node_modules を使う。package.json に依存を足してもイメージを
+	# 再ビルドするまで反映されず、境界検証が
+	# 「Resolve error: ... invalid interface loaded as resolver」で
+	# **全ファイル error になる**（違反ゼロのファイルも含む）。
+	#
+	# 原因が「境界違反」ではなく「解決エラー」として出るため、
+	# 検証ツールを緩める方向へ誘導されやすい。CI と同じ手順に揃えて防ぐ。
+	$(DC) run --rm frontend sh -c "npm ci --no-audit --no-fund && npm run lint"
 	$(DC) run --rm frontend npm run typecheck
 
 fmt: ## フォーマット
