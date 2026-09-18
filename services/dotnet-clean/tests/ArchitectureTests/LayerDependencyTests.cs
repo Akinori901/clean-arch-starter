@@ -25,7 +25,10 @@ public sealed class LayerDependencyTests
     /// Domain は EF Core を知らない。
     ///
     /// ProjectReference では止められない（NuGet パッケージなので）。
-    /// Domain.csproj に PackageReference を 1 行足すとここが落ちる。
+    ///
+    /// **ただし PackageReference を足しただけでは落ちない。**
+    /// NetArchTest は IL を見るため、型を実際に使って初めて参照が現れる。
+    /// Domain のエンティティが DbContext を継承した時点でここが落ちる（実測）。
     /// </summary>
     [Fact]
     public void Domain_はEFCoreに依存しない()
