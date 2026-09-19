@@ -63,6 +63,13 @@ NOT_DOMAIN_NAMES = %w[
 #
 # Laravel 版で "result" を載せていたために回避経路になった（実際に踏んだ）。
 # `result` / `record` / `entity` のような「中身が何でもありうる名前」は載せない。
+#
+# **リストを増やして誤検知を潰す方向には進めないこと。**
+# 例えば `res.status`（HTTP レスポンス）は原理的には誤検知しうるが、
+# そもそも Operation が HTTP クライアントや DB 接続を直接触るのは層違反で、
+# `bin/verify-layers` が先に落とす（60-hanami-clean.md の依存表より、
+# Operation が参照してよいのは domain と Deps 経由の repos / gateways だけ）。
+# **到達しないコードのためにリストを緩めると、実在する回避経路が開く。**
 NOT_DOMAIN_RECEIVERS = %w[self config settings params request response env].freeze
 
 # `a.b` の形（call ノード）を集める。
@@ -148,8 +155,6 @@ def check_anemic_domain(files)
     next if sexp.nil?
 
     each_condition(sexp) do |cond|
-      next if contains_call?(cond)
-
       domain_state_reads(cond).each do |read|
         violations << anemic_violation(path, read)
       end
@@ -160,6 +165,10 @@ def check_anemic_domain(files)
 end
 
 # 条件式から「ドメインの状態を読んでいる箇所」だけを取り出す。
+#
+# **呼び出しの判定は条件式全体ではなく、その読み出し自身について行う。**
+# 全体で見ると `if user.id.to_s.size.positive? && !user.active` のように
+# 無関係な呼び出しを 1 つ足すだけで検査を丸ごと回避できてしまう（実際に踏んだ）。
 def domain_state_reads(cond)
   collect_attribute_reads(cond).select do |read|
     domain_state_name?(read[:name]) &&
@@ -178,14 +187,23 @@ def anemic_violation(path, read)
   }
 end
 
-# if / unless / while の条件式を辿る。
+# 条件式を持つノード。node[1] がその条件式にあたる。
+CONDITION_NODES = %i[
+  if unless elsif if_mod unless_mod
+  while while_mod until until_mod
+  case when
+].freeze
+
+# 分岐の条件式を辿る。
+#
+# **if / unless だけを見ていると抜け道になる。**
+# `case user.active when false` や `while user.active` は
+# 素通りしていた（実際に踏んだ）。
 def each_condition(node, &block)
   return unless node.is_a?(Array)
 
-  case node[0]
-  when :if, :unless, :elsif, :if_mod, :unless_mod
-    block.call(node[1]) if node[1].is_a?(Array)
-  end
+  # いずれも node[1] が条件式（:case は対象式、:when は各 when 節の条件）。
+  block.call(node[1]) if CONDITION_NODES.include?(node[0]) && node[1].is_a?(Array)
 
   node.each { |child| each_condition(child, &block) if child.is_a?(Array) }
 end

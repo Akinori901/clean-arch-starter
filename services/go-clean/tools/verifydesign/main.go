@@ -115,22 +115,16 @@ func checkAnemicDomain(dir string) []violation {
 
 	forEachFile(dir, func(fset *token.FileSet, file *ast.File, path string) {
 		ast.Inspect(file, func(n ast.Node) bool {
-			cond := conditionOf(n)
-			if cond == nil {
-				return true
-			}
-			if containsCall(cond) {
-				// 呼び出しが混ざるなら判定はその先（entity）にある。疑わしきは通す。
-				return true
-			}
-			for _, sel := range domainStateSelectors(cond) {
-				out = append(out, violation{
-					rule: "anemic-domain",
-					pos:  fset.Position(sel.Pos()).String(),
-					msg: fmt.Sprintf("フィールドを直接読んで業務判定している: %s.%s",
-						exprString(sel.X), sel.Sel.Name),
-					hint: "判定規則は entity のメソッド（例: CanSignIn()）へ移し、ここでは呼ぶだけにすること",
-				})
+			for _, cond := range conditionsOf(n) {
+				for _, sel := range domainStateSelectors(cond) {
+					out = append(out, violation{
+						rule: "anemic-domain",
+						pos:  fset.Position(sel.Pos()).String(),
+						msg: fmt.Sprintf("フィールドを直接読んで業務判定している: %s.%s",
+							exprString(sel.X), sel.Sel.Name),
+						hint: "判定規則は entity のメソッド（例: CanSignIn()）へ移し、ここでは呼ぶだけにすること",
+					})
+				}
 			}
 			return true
 		})
@@ -139,31 +133,54 @@ func checkAnemicDomain(dir string) []violation {
 	return out
 }
 
-// if 文の条件式を取り出す。該当しなければ nil。
-func conditionOf(n ast.Node) ast.Expr {
-	if ifStmt, ok := n.(*ast.IfStmt); ok {
-		return ifStmt.Cond
+// 分岐の条件式を取り出す。該当しなければ空。
+//
+// **if だけを見ていると抜け道になる。**
+// Go では switch が極めて自然な書き方で、悪意なく書いても
+// `switch { case !user.IsActive: }` は素通りしていた（実際に踏んだ）。
+func conditionsOf(n ast.Node) []ast.Expr {
+	switch stmt := n.(type) {
+	case *ast.IfStmt:
+		return []ast.Expr{stmt.Cond}
+	case *ast.ForStmt:
+		if stmt.Cond != nil {
+			return []ast.Expr{stmt.Cond}
+		}
+	case *ast.SwitchStmt:
+		var out []ast.Expr
+		// switch user.IsActive { ... } の Tag
+		if stmt.Tag != nil {
+			out = append(out, stmt.Tag)
+		}
+		// switch { case !user.IsActive: } の各 case
+		if stmt.Body != nil {
+			for _, item := range stmt.Body.List {
+				clause, ok := item.(*ast.CaseClause)
+				if !ok {
+					continue
+				}
+				out = append(out, clause.List...)
+			}
+		}
+		return out
 	}
 	return nil
 }
 
-func containsCall(expr ast.Expr) bool {
-	found := false
-	ast.Inspect(expr, func(n ast.Node) bool {
-		if _, ok := n.(*ast.CallExpr); ok {
-			found = true
-			return false
-		}
-		return true
-	})
-	return found
-}
-
 // 条件式から「ドメインの状態を読んでいる箇所」だけを取り出す。
+//
+// **呼び出しの判定は条件式全体ではなく、そのセレクタ自身について行う。**
+// 全体で見ると `if !user.IsActive && other.Equals(user)` のように
+// 無関係な呼び出しを 1 つ足すだけで検査を丸ごと回避できてしまう（実際に踏んだ）。
 func domainStateSelectors(expr ast.Expr) []*ast.SelectorExpr {
 	var out []*ast.SelectorExpr
 
 	ast.Inspect(expr, func(n ast.Node) bool {
+		// 呼び出しの内側は見ない。`user.CanSignIn()` のように
+		// メソッドへ委譲していれば、判定はその先（entity）が持っている。
+		if _, ok := n.(*ast.CallExpr); ok {
+			return false
+		}
 		sel, ok := n.(*ast.SelectorExpr)
 		if !ok {
 			return true

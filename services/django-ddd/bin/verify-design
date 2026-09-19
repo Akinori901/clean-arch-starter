@@ -226,26 +226,32 @@ def check_anemic_domain(files: list[Path]) -> list[Violation]:
         except SyntaxError:
             continue
         for node in ast.walk(tree):
-            # if 文と条件式（三項演算子）の両方を見る
-            if not isinstance(node, ast.If | ast.IfExp):
+            # **if だけを見ていると抜け道になる。**
+            # while / match で同じ判定を書けば素通りしてしまう。
+            if isinstance(node, ast.If | ast.IfExp | ast.While):
+                tests = [node.test]
+            elif isinstance(node, ast.Match):
+                # match user.is_active: の対象式
+                tests = [node.subject]
+            else:
                 continue
-            test = node.test
-            if not _describes_domain_decision(test):
-                continue
-            out.append(
-                Violation(
-                    rule="anemic-domain",
-                    path=path,
-                    lineno=test.lineno,
-                    message=(
-                        f"属性を直接読んで業務判定している: if {ast.unparse(test)}"
-                    ),
-                    hint=(
-                        "判定規則は集約/エンティティのメソッドへ移し、"
-                        "ここではその戻り値を使うこと"
-                    ),
-                )
-            )
+
+            for test in tests:
+                if _describes_domain_decision(test):
+                    out.append(
+                        Violation(
+                            rule="anemic-domain",
+                            path=path,
+                            lineno=test.lineno,
+                            message=(
+                                f"属性を直接読んで業務判定している: if {ast.unparse(test)}"
+                            ),
+                            hint=(
+                                "判定規則は集約/エンティティのメソッドへ移し、"
+                                "ここではその戻り値を使うこと"
+                            ),
+                        )
+                    )
     return out
 
 
