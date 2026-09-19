@@ -66,16 +66,24 @@ verify-laravel: ## Laravel: 層検証(deptrac) + PHPStan(設計検証込み) + P
 	$(DC) run --rm laravel ./vendor/bin/phpstan analyse --no-progress --memory-limit=512M
 	$(DC) run --rm laravel ./vendor/bin/phpunit --testsuite Unit
 
-verify-go: ## Go: 層検証(go-arch-lint) + vet + test
+verify-go: ## Go: 層検証(go-arch-lint) + 設計検証 + vet + test
 	@echo "==> Go クリーンアーキ層検証"
 	$(DC) run --rm go sh -c "go install github.com/fe3dback/go-arch-lint@latest && \
 	  $$(go env GOPATH)/bin/go-arch-lint check"
+	@echo "==> Go 設計検証"
+	# go-arch-lint が見るのは import だけ。判定規則が usecase に漏れていても
+	# 層は越えていないので通ってしまう。そこを落とす。
+	$(DC) run --rm go go run ./tools/verifydesign
 	$(DC) run --rm go go vet ./...
 	$(DC) run --rm go go test ./...
 
-verify-hanami: ## Hanami: 層検証 + RuboCop + RSpec
+verify-hanami: ## Hanami: 層検証 + 設計検証 + RuboCop + RSpec
 	@echo "==> Hanami クリーンアーキ層検証"
 	$(DC) run --rm hanami ruby bin/verify-layers
+	@echo "==> Hanami 設計検証"
+	# verify-layers が見るのは「禁止されたものを参照していないか」だけ。
+	# 判定規則が Operation に漏れていても、層は越えていないので通ってしまう。
+	$(DC) run --rm hanami ruby bin/verify-design
 	$(DC) run --rm hanami bundle exec rubocop
 	$(DC) run --rm hanami bundle exec rspec spec/domain -I lib -I spec
 

@@ -25,14 +25,20 @@ RULES = [
     }
   },
   {
-    name: "operations は ROM / AWS を直接触らない",
+    name: "operations は ROM / AWS / HTTP を直接触らない",
     files: "app/operations/**/*.rb",
     # 永続化・外部サービスは repos / gateways 経由で使う（Deps で注入される）
     forbidden: {
       /\bAws::/ => "AWS SDK",
       /\bROM\b/ => "ROM",
       /\bSequel\b/ => "Sequel",
-      /AppCore::Relations::/ => "Relation(直接参照)"
+      /AppCore::Relations::/ => "Relation(直接参照)",
+      # HTTP クライアントも gateways の担当。
+      # 60-hanami-clean.md の依存表では Operation が参照してよいのは
+      # domain と Deps 経由の repos / gateways だけ。
+      /\bNet::HTTP\b/ => "Net::HTTP(直接参照)",
+      /\bFaraday\b/ => "Faraday(直接参照)",
+      /\bHTTParty\b/ => "HTTParty(直接参照)"
     }
   },
   {

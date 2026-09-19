@@ -114,6 +114,11 @@ jobs:
           go install github.com/fe3dback/go-arch-lint@latest
           "$(go env GOPATH)/bin/go-arch-lint" check
 
+      # go-arch-lint が見るのは import だけ。
+      # 判定規則が usecase に漏れていても層は越えていないので通ってしまう。
+      - name: 設計規約を検証（貧血症・外側語彙）
+        run: go run ./tools/verifydesign
+
       - name: 静的解析（golangci-lint）
         uses: golangci/golangci-lint-action@v9
         with:
@@ -143,6 +148,11 @@ jobs:
       # RuboCop は「層の依存方向」を見られないため専用スクリプトで検証する。
       - name: 層の依存方向を検証
         run: ruby bin/verify-layers
+
+      # verify-layers が見るのは「禁止されたものを参照していないか」だけ。
+      # 判定規則が Operation に漏れていても層は越えていないので通ってしまう。
+      - name: 設計規約を検証（貧血症・外側語彙・公開面）
+        run: ruby bin/verify-design
 
       - name: 静的解析（RuboCop）
         run: bundle exec rubocop

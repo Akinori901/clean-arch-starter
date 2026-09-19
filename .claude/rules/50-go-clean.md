@@ -1,7 +1,12 @@
 # 50. Go — クリーンアーキテクチャ構成ルール
 
 対象: `services/go-clean/`
-検証: `go-arch-lint`（`.go-arch-lint.yml`）+ `golangci-lint` + `go vet`
+検証: `go-arch-lint`（`.go-arch-lint.yml`）+ `tools/verifydesign` + `golangci-lint` + `go vet`
+
+> **検証は 2 種類ある。** `go-arch-lint` が見るのは
+> 「どの層が何を import したか」だけ。
+> **層を越えていなくても規約違反はありうる** —— 判定規則が usecase に漏れる、
+> 内側に HTTP の語彙が来る、など。そこは `tools/verifydesign` が落とす。
 
 ## なぜクリーンアーキテクチャか
 
@@ -68,6 +73,10 @@ services/go-clean/
 - ❌ `repo` から `usecase` を import する（契約は満たすだけ）
 - ❌ `controller` から `repo` を直接触る（DI 経由で受け取る）
 - ❌ `sql.ErrNoRows` をそのまま上へ返す（`entity` のエラーへ変換する）
+- ❌ `usecase` がフィールドを直接読んで業務判定する（例: `if !user.IsActive`）
+  → `tools/verifydesign` が検知する。判定は `entity` のメソッド
+     （例: `user.CanSignIn()`）へ移し、`usecase` では呼ぶだけにする
+- ❌ `entity` / `usecase` に HTTP の語彙（`StatusCode` 等）を持ち込む
 
 ## エラーの扱い
 

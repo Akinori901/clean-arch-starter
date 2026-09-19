@@ -28,6 +28,7 @@ import argparse
 import ast
 import json
 import sys
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -183,6 +184,27 @@ def _is_domain_state_attr(attr: ast.Attribute) -> bool:
     return name in _DOMAIN_STATE_NAMES
 
 
+def _attributes_outside_calls(node: ast.expr) -> list[ast.Attribute]:
+    """呼び出しの**内側ではない**属性アクセスを集める。
+
+    `account.user.can_sign_in()` のようにメソッドへ委譲していれば、
+    判定はその先（ドメイン）が持っているので見ない。
+    """
+    found: list[ast.Attribute] = []
+
+    def walk(n: ast.AST) -> None:
+        if isinstance(n, ast.Call):
+            # 呼び出しの内側は辿らない
+            return
+        if isinstance(n, ast.Attribute):
+            found.append(n)
+        for child in ast.iter_child_nodes(n):
+            walk(child)
+
+    walk(node)
+    return found
+
+
 def _describes_domain_decision(test: ast.expr) -> bool:
     """この条件式は「ドメインの状態を直接読んだ業務判定」か。
 
@@ -203,11 +225,10 @@ def _describes_domain_decision(test: ast.expr) -> bool:
     if _is_none_check(node):
         return False
 
-    if any(isinstance(n, ast.Call) for n in ast.walk(node)):
-        # 呼び出しが混ざるなら判定はその先（ドメイン）にある。疑わしきは通す。
-        return False
-
-    for attr in (n for n in ast.walk(node) if isinstance(n, ast.Attribute)):
+    # **呼び出しの判定は式全体ではなく、その属性自身について行う。**
+    # 全体で見ると `if account.user.is_active == bool(account.id)` のように
+    # 無関係な呼び出しを 1 つ足すだけで検査を丸ごと回避できる（実際に踏んだ）。
+    for attr in _attributes_outside_calls(node):
         if not _is_domain_state_attr(attr):
             continue
         root = _root_name(attr)
@@ -226,26 +247,32 @@ def check_anemic_domain(files: list[Path]) -> list[Violation]:
         except SyntaxError:
             continue
         for node in ast.walk(tree):
-            # if 文と条件式（三項演算子）の両方を見る
-            if not isinstance(node, ast.If | ast.IfExp):
+            # **if だけを見ていると抜け道になる。**
+            # while / match で同じ判定を書けば素通りしてしまう。
+            if isinstance(node, ast.If | ast.IfExp | ast.While):
+                tests = [node.test]
+            elif isinstance(node, ast.Match):
+                # match user.is_active: の対象式
+                tests = [node.subject]
+            else:
                 continue
-            test = node.test
-            if not _describes_domain_decision(test):
-                continue
-            out.append(
-                Violation(
-                    rule="anemic-domain",
-                    path=path,
-                    lineno=test.lineno,
-                    message=(
-                        f"属性を直接読んで業務判定している: if {ast.unparse(test)}"
-                    ),
-                    hint=(
-                        "判定規則は集約/エンティティのメソッドへ移し、"
-                        "ここではその戻り値を使うこと"
-                    ),
-                )
-            )
+
+            for test in tests:
+                if _describes_domain_decision(test):
+                    out.append(
+                        Violation(
+                            rule="anemic-domain",
+                            path=path,
+                            lineno=test.lineno,
+                            message=(
+                                f"属性を直接読んで業務判定している: if {ast.unparse(test)}"
+                            ),
+                            hint=(
+                                "判定規則は集約/エンティティのメソッドへ移し、"
+                                "ここではその戻り値を使うこと"
+                            ),
+                        )
+                    )
     return out
 
 
@@ -293,7 +320,7 @@ _PRESENTATION_NAMES = frozenset(
 _STATUS_IS_HTTP_ONLY_WITH = frozenset({"code", "http"})
 
 
-def _iter_named_nodes(tree: ast.AST):
+def _iter_named_nodes(tree: ast.AST) -> Iterator[tuple[ast.AST, str]]:
     for node in ast.walk(tree):
         if isinstance(node, ast.Name):
             yield node, node.id

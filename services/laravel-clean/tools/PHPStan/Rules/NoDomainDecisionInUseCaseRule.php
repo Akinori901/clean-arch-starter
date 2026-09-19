@@ -133,6 +133,11 @@ final class NoDomainDecisionInUseCaseRule implements Rule
         if ($node instanceof Stmt\While_ || $node instanceof Stmt\Do_) {
             return $node->cond;
         }
+        // for ($i = 0; ! $user->isActive; $i++) の条件部。
+        // cond は配列（カンマ区切りを許すため）なので最後の式を見る。
+        if ($node instanceof Stmt\For_ && $node->cond !== []) {
+            return $node->cond[count($node->cond) - 1];
+        }
         if ($node instanceof Expr\Ternary) {
             return $node->cond;
         }
@@ -153,11 +158,38 @@ final class NoDomainDecisionInUseCaseRule implements Rule
         }
         // 変数へ入れてから if する形も拾う（AI が自然に書く抜け道）
         //   $inactive = ! $user->isActive;  if ($inactive) { ... }
-        if ($node instanceof Expr\Assign && $node->expr instanceof Expr) {
+        //
+        // **ただし「判定の形をした代入」に限る。**
+        // `$role = $user->role;` のような単なるデータ読み出しまで拾うと、
+        // 分岐が 1 つも無いコードを「業務判定している」と報告してしまう
+        // （Output DTO の組み立てが典型。実際に踏んだ）。
+        if ($node instanceof Expr\Assign && $this->looksLikeDecision($node->expr)) {
             return $node->expr;
         }
 
         return null;
+    }
+
+    /**
+     * その式は「判定の形」をしているか。
+     *
+     * 否定・比較・論理演算を含むなら真偽を作っている。
+     * 単なるプロパティ読み出し（`$user->role`）は判定ではない。
+     */
+    private function looksLikeDecision(Node $expr): bool
+    {
+        if ($expr instanceof BooleanNot) {
+            return true;
+        }
+        if ($expr instanceof BinaryOp\BooleanAnd || $expr instanceof BinaryOp\BooleanOr
+            || $expr instanceof BinaryOp\LogicalAnd || $expr instanceof BinaryOp\LogicalOr) {
+            return true;
+        }
+
+        return $expr instanceof BinaryOp\Identical
+            || $expr instanceof BinaryOp\NotIdentical
+            || $expr instanceof BinaryOp\Equal
+            || $expr instanceof BinaryOp\NotEqual;
     }
 
     /**
@@ -188,11 +220,9 @@ final class NoDomainDecisionInUseCaseRule implements Rule
             }
         }
 
-        if ($this->containsCall($cond)) {
-            // 呼び出しが混ざるなら判定はその先にある。疑わしきは通す。
-            return false;
-        }
-
+        // **呼び出しの判定は条件式全体ではなく、その取得自身について行う。**
+        // 全体で見ると `if ($user->isActive === $other->canSignIn())` のように
+        // 無関係な呼び出しを 1 つ足すだけで検査を丸ごと回避できる（実際に踏んだ）。
         foreach ($this->collectPropertyFetches($cond) as $fetch) {
             if ($this->isDomainStateProperty($fetch)) {
                 return true;
@@ -208,33 +238,25 @@ final class NoDomainDecisionInUseCaseRule implements Rule
             && strtolower($expr->name->toString()) === 'null';
     }
 
-    private function containsCall(Node $node): bool
-    {
-        if ($node instanceof Expr\MethodCall
-            || $node instanceof Expr\StaticCall
-            || $node instanceof Expr\FuncCall
-            || $node instanceof Expr\NullsafeMethodCall) {
-            return true;
-        }
-
-        foreach ($node->getSubNodeNames() as $name) {
-            $sub = $node->{$name};
-            foreach (is_array($sub) ? $sub : [$sub] as $child) {
-                if ($child instanceof Node && $this->containsCall($child)) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
     /**
+     * 呼び出しの**内側ではない**プロパティ取得を集める。
+     *
+     * `$user->canSignIn()` のようにメソッドへ委譲していれば、
+     * 判定はその先（ドメイン）が持っているので見ない。
+     *
      * @return list<PropertyFetch>
      */
     private function collectPropertyFetches(Node $node): array
     {
         $found = [];
+
+        if ($node instanceof Expr\MethodCall
+            || $node instanceof Expr\StaticCall
+            || $node instanceof Expr\FuncCall
+            || $node instanceof Expr\NullsafeMethodCall) {
+            // 呼び出しの内側は辿らない
+            return [];
+        }
 
         if ($node instanceof PropertyFetch) {
             $found[] = $node;

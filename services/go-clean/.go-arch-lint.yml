@@ -42,6 +42,11 @@ components:
     in: internal/app
   main:
     in: cmd/**
+  # 規約検証ツール。アプリの層ではないが、**未分類のファイルを許さない**
+  # 設計なので明示的に宣言する。宣言しないと
+  # 「not attached to any component in archfile」で落ちる（実際に踏んだ）。
+  tools:
+    in: tools/**
 
 # 外部ライブラリの持ち込みも層ごとに制限する。
 # 「entity に DB ドライバが入っていないか」は import 制限でしか止められない。
@@ -114,6 +119,15 @@ deps:
       - awsproxy
       - aws
       - chi
+
+  # ── 規約検証ツール ───────────────────────────────────────
+  # アプリのコードを**解析する側**であり、アプリの層には依存しない。
+  # 標準ライブラリ（go/ast・go/parser）だけで書くこと。
+  #
+  # entity と同じく、ここに **書かない** のが「依存先ゼロ」の表し方。
+  # deps に無いコンポーネントは許可リストが空として扱われ、
+  # 何かを import した瞬間に落ちる
+  # （空の mayDependOn / 単独の anyVendorDeps は設定エラーになる）。
 
 # entity はどの層からも import してよい（依存グラフの末端）。
 # ここに載せることで、各層の mayDependOn に entity を書く必要がなくなる。

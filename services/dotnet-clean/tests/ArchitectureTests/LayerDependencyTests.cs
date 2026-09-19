@@ -159,6 +159,35 @@ public sealed class LayerDependencyTests
     }
 
     /// <summary>
+    /// ユースケースの公開面は ExecuteAsync だけ。
+    ///
+    /// 「1ファイル1ユースケース・公開は ExecuteAsync のみ」という規約
+    /// （70-dotnet-clean.md）を機械検証する。手順が増えたときに
+    /// メソッドを生やすのではなく、ユースケースを分けさせるため。
+    ///
+    /// **これは NetArchTest ではなくリフレクションで見る。**
+    /// NetArchTest は型の依存関係を見るツールで、
+    /// 「公開メソッドが何個あるか」は守備範囲の外。
+    /// </summary>
+    [Fact]
+    public void UseCase_の公開面はExecuteAsyncだけ()
+    {
+        var offenders = ApplicationAssembly.GetTypes()
+            .Where(t => t.IsClass && t.Namespace?.StartsWith("Application.UseCases", StringComparison.Ordinal) == true)
+            .SelectMany(
+                t => t.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                    .Where(m => !m.IsSpecialName && m.Name != "ExecuteAsync"),
+                (t, m) => $"{t.Name}.{m.Name}")
+            .ToList();
+
+        Assert.True(
+            offenders.Count == 0,
+            $"ユースケースに ExecuteAsync 以外の公開メソッドがあります。"
+            + $"手順が増えたならユースケースを分けてください。{Environment.NewLine}"
+            + string.Join(Environment.NewLine, offenders.Select(o => $"  - {o}")));
+    }
+
+    /// <summary>
     /// 落ちたときに「どの型が違反したか」を必ず出す。
     ///
     /// 「BROKEN」だけ出しても直せない。規約検証は

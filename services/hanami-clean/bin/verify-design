@@ -1,0 +1,351 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# 設計規約の検証（bin/verify-layers が見られない領域を埋める）。
+#
+# bin/verify-layers が見るのは「禁止されたものを参照していないか」だけ。
+# だが 60-hanami-clean.md が守りたいことには、**参照の有無では表れないもの**がある。
+#
+#     return Failure[...] unless user.active         ← 規則が Operation に漏れている
+#     return Failure[...] unless user.can_sign_in?   ← 本来の書き方
+#
+# 前者は層を越えていないので verify-layers は通す。
+# 通し続けると「ディレクトリだけクリーンアーキ」のコードが育つ。
+#
+# 使い方: ruby bin/verify-design
+#
+# 設計方針:
+#   **誤検知を出さないことを最優先にする。**
+#   検証はオオカミ少年になった時点で死ぬ。誰も読まなくなり、そのうち無効化される。
+#   だから疑わしきは通す側に倒し、確実に言い切れるものだけを落とす。
+
+require "ripper"
+
+ROOT = File.expand_path("..", __dir__)
+
+# --------------------------------------------------------------------------
+# ルール1: ドメイン判定を Operation に書かない（貧血症の検知）
+# --------------------------------------------------------------------------
+#
+# 「条件分岐の有無」では判定できない。Operation に分岐があること自体は正しい。
+# 見るべきは **何を根拠に分岐しているか**。
+#
+#   unless user.can_sign_in?    ← OK。判定はエンティティが持つ（メソッド呼び出し）
+#   if existing                 ← OK。存在チェック
+#   unless user.active          ← NG。属性を読んで業務判定している
+#
+# Ruby はメソッド呼び出しと属性参照が構文上おなじ（`user.active`）ため、
+# **述語メソッド（? 付き）かどうか**を主たる手掛かりにする。
+# Ruby の作法では「真偽を返すものは ? を付ける」ため、
+# ? が無い `user.active` は属性読み出しとみなせる。
+
+# 業務上の状態を表しやすい名前。ここに該当するものだけを見る。
+DOMAIN_STATE_PREFIXES = %w[is_ has_ can_ was_ should_].freeze
+DOMAIN_STATE_NAMES = %w[
+  active enabled disabled deleted expired
+  approved rejected published locked suspended
+  status state role plan tier
+].freeze
+
+# 名前が上の条件に当てはまっても業務判定ではないもの。
+NOT_DOMAIN_NAMES = %w[
+  status_code is_a is_a? instance_of? nil? empty? any? all? none?
+].freeze
+
+# レシーバがこれらなら、ドメインオブジェクトではない。
+#
+# **このリストは「その名前なら中身がフレームワーク・手続きの物だと
+# 断定できる」ものだけに限ること。**
+# 汎用的な名前を載せると、変数名を変えるだけで検証を回避できてしまう。
+#
+#   result = user
+#   return Failure[...] unless result.active   # "result" を載せていたら素通り
+#
+# Laravel 版で "result" を載せていたために回避経路になった（実際に踏んだ）。
+# `result` / `record` / `entity` のような「中身が何でもありうる名前」は載せない。
+#
+# **リストを増やして誤検知を潰す方向には進めないこと。**
+# 例えば `res.status`（HTTP レスポンス）は原理的には誤検知しうるが、
+# そもそも Operation が HTTP クライアントや DB 接続を直接触るのは層違反で、
+# `bin/verify-layers` が先に落とす（60-hanami-clean.md の依存表より、
+# Operation が参照してよいのは domain と Deps 経由の repos / gateways だけ）。
+# **到達しないコードのためにリストを緩めると、実在する回避経路が開く。**
+NOT_DOMAIN_RECEIVERS = %w[self config settings params request response env].freeze
+
+# `a.b` の形（call ノード）を集める。
+# 述語メソッド（? 付き）と、引数付き呼び出しは除く。
+#
+# **呼び出しの内側は辿らない。** `foo(user.active)` のように
+# 引数として渡している場合、判定はその先が持っている。
+# Django / Go / Laravel も同じ扱いにしてある（4 スタックで揃える）。
+CALL_NODES = %i[method_add_arg command command_call].freeze
+
+def collect_attribute_reads(node, acc = [])
+  return acc unless node.is_a?(Array)
+  return acc if CALL_NODES.include?(node[0])
+
+  read = attribute_read(node)
+  acc << read if read
+
+  node.each { |child| collect_attribute_reads(child, acc) if child.is_a?(Array) }
+  acc
+end
+
+# call ノードなら「属性読み出し」として取り出す。該当しなければ nil。
+def attribute_read(node)
+  return nil unless node[0] == :call
+
+  name_node = node[3]
+  return nil unless name_node.is_a?(Array) && name_node[0] == :@ident
+
+  name = name_node[1]
+  # 述語（? 付き）はメソッド呼び出し。判定はその先が持っている。
+  return nil if name.end_with?("?")
+
+  { name: name, receiver: receiver_name(node[1]), line: name_node[2][0] }
+end
+
+def receiver_name(node)
+  return nil unless node.is_a?(Array)
+  return "self" if self_ref?(node)
+
+  identifier_name(root_receiver(node))
+end
+
+def self_ref?(node)
+  node[0] == :var_ref && node[1].is_a?(Array) && node[1][0] == :@kw && node[1][1] == "self"
+end
+
+# a.b.c の a まで辿る
+def root_receiver(node)
+  cur = node
+  cur = cur[1] while cur.is_a?(Array) && cur[0] == :call && cur[1].is_a?(Array)
+  cur
+end
+
+def identifier_name(node)
+  return nil unless node.is_a?(Array) && %i[var_ref vcall].include?(node[0])
+
+  ident = node[1]
+  ident[1] if ident.is_a?(Array) && ident[0] == :@ident
+end
+
+def domain_state_name?(name)
+  return false if NOT_DOMAIN_NAMES.include?(name)
+  return true if DOMAIN_STATE_PREFIXES.any? { |p| name.start_with?(p) && name.length > p.length }
+
+  DOMAIN_STATE_NAMES.include?(name)
+end
+
+# 条件式の中に呼び出し（引数付き・述語）が含まれるか。
+# 含むなら判定はその先にある。疑わしきは通す。
+def contains_call?(node)
+  return false unless node.is_a?(Array)
+  return true if predicate_call?(node) || %i[method_add_arg command command_call].include?(node[0])
+
+  node.any? { |child| child.is_a?(Array) && contains_call?(child) }
+end
+
+def predicate_call?(node)
+  return false unless node[0] == :call
+
+  name_node = node[3]
+  name_node.is_a?(Array) && name_node[0] == :@ident && name_node[1].end_with?("?")
+end
+
+# 解析できなかったファイルは unparsable へ積む。
+# 1 件でもあれば検証は成立していないので、呼び出し側で落とす。
+def check_anemic_domain(files, unparsable)
+  violations = []
+
+  files.each do |path|
+    src = File.read(path)
+    sexp = Ripper.sexp(src)
+    if sexp.nil?
+      # **無言で飛ばさない。かつ OK で終わらせない。**
+      # 解析できないファイルは「検証していない」のであって
+      # 「違反が無い」ではない。exit 0 で返すと
+      # 「検証が通った」と誤解したまま素通りする。
+      unparsable << path.delete_prefix("#{ROOT}/")
+      next
+    end
+
+    each_condition(sexp) do |cond|
+      domain_state_reads(cond).each do |read|
+        violations << anemic_violation(path, read)
+      end
+    end
+  end
+
+  violations
+end
+
+# 条件式から「ドメインの状態を読んでいる箇所」だけを取り出す。
+#
+# **呼び出しの判定は条件式全体ではなく、その読み出し自身について行う。**
+# 全体で見ると `if user.id.to_s.size.positive? && !user.active` のように
+# 無関係な呼び出しを 1 つ足すだけで検査を丸ごと回避できてしまう（実際に踏んだ）。
+def domain_state_reads(cond)
+  collect_attribute_reads(cond).select do |read|
+    domain_state_name?(read[:name]) &&
+      !read[:receiver].nil? &&
+      !NOT_DOMAIN_RECEIVERS.include?(read[:receiver])
+  end
+end
+
+def anemic_violation(path, read)
+  {
+    rule: "anemic-domain",
+    path: path.delete_prefix("#{ROOT}/"),
+    line: read[:line],
+    message: "属性を直接読んで業務判定している: #{read[:receiver]}.#{read[:name]}",
+    hint: "判定規則はエンティティの述語メソッド（例: can_sign_in?）へ移し、ここでは呼ぶだけにすること"
+  }
+end
+
+# 条件式を持つノード。node[1] がその条件式にあたる。
+#
+# `:ifop` は三項演算子（`user.active ? 1 : 2`）。
+# Ripper では :if とは別ノードになるため、明示しないと素通りする
+# （README に「三項は検知する」と書きながら漏れていた。実際に踏んだ）。
+CONDITION_NODES = %i[
+  if unless elsif if_mod unless_mod
+  while while_mod until until_mod
+  case when
+  ifop
+].freeze
+
+# 分岐の条件式を辿る。
+#
+# **if / unless だけを見ていると抜け道になる。**
+# `case user.active when false` や `while user.active` は
+# 素通りしていた（実際に踏んだ）。
+def each_condition(node, &block)
+  return unless node.is_a?(Array)
+
+  # いずれも node[1] が条件式（:case は対象式、:when は各 when 節の条件）。
+  block.call(node[1]) if CONDITION_NODES.include?(node[0]) && node[1].is_a?(Array)
+
+  node.each { |child| each_condition(child, &block) if child.is_a?(Array) }
+end
+
+# --------------------------------------------------------------------------
+# ルール2: domain に HTTP の語彙を持ち込まない
+# --------------------------------------------------------------------------
+#
+# 「認証に失敗した」はドメインの語彙だが、「401」は Action の語彙。
+# ドメインエラーがステータスを持ち始めると、ドメインが配信手段に縛られる。
+#
+# 裸の数値（401 等）は見ない。業務上の上限値と区別できず誤検知の温床になる。
+
+HTTP_VOCABULARY = {
+  /\bstatus_code\b/ => "HTTP ステータス",
+  /\bRack::/ => "Rack",
+  /\bHanami::Action\b/ => "Action"
+}.freeze
+
+def check_outward_vocabulary(files)
+  violations = []
+
+  files.each do |path|
+    File.readlines(path).each_with_index do |line, index|
+      code = line.split("#").first.to_s
+      HTTP_VOCABULARY.each do |pattern, label|
+        next unless pattern.match?(code)
+
+        violations << {
+          rule: "outward-vocabulary",
+          path: path.delete_prefix("#{ROOT}/"),
+          line: index + 1,
+          message: "domain に#{label}の語彙が現れている",
+          hint: "HTTP ステータスへの変換は Action の仕事。ドメインは Failure のタグで表現すること"
+        }
+      end
+    end
+  end
+
+  violations
+end
+
+# --------------------------------------------------------------------------
+# ルール3: Operation の公開面は call だけ（予算方式）
+# --------------------------------------------------------------------------
+#
+# 「増やしすぎ」は主観だが、増えたこと自体は機械的に分かる。
+# 手順が増えたなら Operation を分けるべきで、公開面を広げる話ではない。
+#
+# private 以降のメソッドは数えない（内部の手順分割は推奨されるため）。
+
+def check_public_surface(files)
+  files.flat_map do |path|
+    # call のみが公開されているべき
+    public_method_defs(path)
+      .reject { |m| m[:name] == "call" }
+      .map { |m| public_surface_violation(path, m) }
+  end
+end
+
+# private より前に定義された def を拾う。
+def public_method_defs(path)
+  public_section = true
+
+  defs = []
+
+  File.readlines(path).each_with_index do |line, index|
+    stripped = line.strip
+    public_section = false if stripped == "private"
+    public_section = true if stripped == "public"
+    next unless public_section
+
+    m = stripped.match(/\Adef\s+([a-z_][A-Za-z0-9_]*[?!]?)/)
+    defs << { name: m[1], line: index + 1 } if m
+  end
+
+  defs
+end
+
+def public_surface_violation(path, method)
+  {
+    rule: "public-surface",
+    path: path.delete_prefix("#{ROOT}/"),
+    line: method[:line],
+    message: "Operation の公開メソッドが call 以外にある: #{method[:name]}",
+    hint: "公開は call のみ。手順が増えたなら private へ下げるか、Operation を分けること"
+  }
+end
+
+# --------------------------------------------------------------------------
+
+def glob(pattern)
+  Dir.glob(File.join(ROOT, pattern))
+end
+
+violations = []
+unparsable = []
+violations += check_anemic_domain(glob("app/operations/**/*.rb"), unparsable)
+violations += check_outward_vocabulary(glob("lib/app_core/domain/**/*.rb"))
+violations += check_public_surface(glob("app/operations/**/*.rb"))
+
+unless unparsable.empty?
+  warn "設計チェック: #{unparsable.size} 件のファイルを解析できませんでした"
+  unparsable.each do |path|
+    warn "  #{path}（構文エラー、または Ruby のバージョンを確認）"
+  end
+  warn ""
+  warn "解析できないファイルは「違反が無い」ではなく「検証していない」。"
+  exit 1
+end
+
+if violations.empty?
+  puts "設計チェック: OK（違反なし）"
+  exit 0
+end
+
+warn "設計チェック: #{violations.size} 件の違反"
+violations.each do |v|
+  warn "  #{v[:path]}:#{v[:line]}  [#{v[:rule]}] #{v[:message]}"
+  warn "      → #{v[:hint]}"
+end
+warn ""
+warn "規約の根拠: .claude/rules/60-hanami-clean.md"
+exit 1
