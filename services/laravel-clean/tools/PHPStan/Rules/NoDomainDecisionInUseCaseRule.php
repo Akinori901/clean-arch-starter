@@ -133,6 +133,11 @@ final class NoDomainDecisionInUseCaseRule implements Rule
         if ($node instanceof Stmt\While_ || $node instanceof Stmt\Do_) {
             return $node->cond;
         }
+        // for ($i = 0; ! $user->isActive; $i++) の条件部。
+        // cond は配列（カンマ区切りを許すため）なので最後の式を見る。
+        if ($node instanceof Stmt\For_ && $node->cond !== []) {
+            return $node->cond[count($node->cond) - 1];
+        }
         if ($node instanceof Expr\Ternary) {
             return $node->cond;
         }
@@ -188,11 +193,9 @@ final class NoDomainDecisionInUseCaseRule implements Rule
             }
         }
 
-        if ($this->containsCall($cond)) {
-            // 呼び出しが混ざるなら判定はその先にある。疑わしきは通す。
-            return false;
-        }
-
+        // **呼び出しの判定は条件式全体ではなく、その取得自身について行う。**
+        // 全体で見ると `if ($user->isActive === $other->canSignIn())` のように
+        // 無関係な呼び出しを 1 つ足すだけで検査を丸ごと回避できる（実際に踏んだ）。
         foreach ($this->collectPropertyFetches($cond) as $fetch) {
             if ($this->isDomainStateProperty($fetch)) {
                 return true;
@@ -230,11 +233,24 @@ final class NoDomainDecisionInUseCaseRule implements Rule
     }
 
     /**
+     * 呼び出しの**内側ではない**プロパティ取得を集める。
+     *
+     * `$user->canSignIn()` のようにメソッドへ委譲していれば、
+     * 判定はその先（ドメイン）が持っているので見ない。
+     *
      * @return list<PropertyFetch>
      */
     private function collectPropertyFetches(Node $node): array
     {
         $found = [];
+
+        if ($node instanceof Expr\MethodCall
+            || $node instanceof Expr\StaticCall
+            || $node instanceof Expr\FuncCall
+            || $node instanceof Expr\NullsafeMethodCall) {
+            // 呼び出しの内側は辿らない
+            return [];
+        }
 
         if ($node instanceof PropertyFetch) {
             $found[] = $node;

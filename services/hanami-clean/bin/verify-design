@@ -152,7 +152,13 @@ def check_anemic_domain(files)
   files.each do |path|
     src = File.read(path)
     sexp = Ripper.sexp(src)
-    next if sexp.nil?
+    if sexp.nil?
+      # **無言で飛ばさない。** 古い Ruby では新しい構文（case/in 等）を
+      # 解析できず nil が返る。黙ってスキップすると
+      # 「検証が通った」と誤解したまま素通りする。
+      warn "  #{path.delete_prefix("#{ROOT}/")}: 解析できませんでした（Ruby のバージョンを確認）"
+      next
+    end
 
     each_condition(sexp) do |cond|
       domain_state_reads(cond).each do |read|
@@ -188,10 +194,15 @@ def anemic_violation(path, read)
 end
 
 # 条件式を持つノード。node[1] がその条件式にあたる。
+#
+# `:ifop` は三項演算子（`user.active ? 1 : 2`）。
+# Ripper では :if とは別ノードになるため、明示しないと素通りする
+# （README に「三項は検知する」と書きながら漏れていた。実際に踏んだ）。
 CONDITION_NODES = %i[
   if unless elsif if_mod unless_mod
   while while_mod until until_mod
   case when
+  ifop
 ].freeze
 
 # 分岐の条件式を辿る。
