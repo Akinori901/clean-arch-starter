@@ -41,15 +41,18 @@ AI は「動くコード」を最短で書こうとするため、放ってお�
 | 対象 | ツール | 検証内容 |
 |---|---|---|
 | Django | import-linter | 層の依存方向（DDD） |
+| Django | bin/verify-design | 設計規約（貧血症・外側語彙・公開面） |
 | Django | ruff / mypy | 静的解析・型 |
 | Laravel | deptrac | 層の依存方向（クリーンアーキ） |
-| Laravel | PHPStan | 静的解析・型 |
+| Laravel | PHPStan | 静的解析・型 + 設計規約（貧血症） |
 | Go | go-arch-lint | 層の依存方向（クリーンアーキ） |
+| Go | tools/verifydesign | 設計規約（貧血症・外側語彙） |
 | Go | golangci-lint / go vet | 静的解析 |
 | Hanami | bin/verify-layers | 層の依存方向（クリーンアーキ） |
+| Hanami | bin/verify-design | 設計規約（貧血症・外側語彙・公開面） |
 | Hanami | RuboCop | 静的解析 |
 | .NET | ProjectReference | 層の依存方向（コンパイル時に強制） |
-| .NET | NetArchTest | 層の依存方向（パッケージ依存・HTTP語彙の混入） |
+| .NET | NetArchTest | 層の依存方向（パッケージ依存・HTTP語彙の混入）+ 公開面 |
 | React | eslint-plugin-boundaries | feature 間の境界 |
 
 **どの層検証も「違反を注入したら落ちること」を確認してある。**

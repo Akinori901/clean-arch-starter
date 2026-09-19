@@ -27,8 +27,8 @@ AI は「動くコード」を最短で書こうとするため、放ってお�
 |---|---|---|
 | **Django** | DDD | import-linter + `bin/verify-design` |
 | **Laravel** | クリーンアーキテクチャ | deptrac + PHPStan カスタムルール |
-| **Go** | クリーンアーキテクチャ | go-arch-lint |
-| **Hanami** (Ruby) | クリーンアーキテクチャ | `bin/verify-layers` |
+| **Go** | クリーンアーキテクチャ | go-arch-lint + `tools/verifydesign` |
+| **Hanami** (Ruby) | クリーンアーキテクチャ | `bin/verify-layers` + `bin/verify-design` |
 | **C#** (.NET) | クリーンアーキテクチャ | ProjectReference + NetArchTest |
 | **React** | feature-sliced | eslint-plugin-boundaries |
 
@@ -127,8 +127,8 @@ curl -X POST localhost:8000/api/auth/sign-in \
 | Django | [`10-django-ddd.md`](.claude/rules/10-django-ddd.md) | import-linter + 設計検証 | `services/django-ddd/.importlinter` / `services/django-ddd/bin/verify-design` |
 | Laravel | [`20-laravel-clean.md`](.claude/rules/20-laravel-clean.md) | deptrac + 設計検証 | `services/laravel-clean/depfile.yaml` / `services/laravel-clean/tools/PHPStan/Rules/` |
 | React | [`30-frontend.md`](.claude/rules/30-frontend.md) | eslint-plugin-boundaries | `services/frontend-react/eslint.config.js` |
-| Go | [`50-go-clean.md`](.claude/rules/50-go-clean.md) | go-arch-lint | `services/go-clean/.go-arch-lint.yml` |
-| Hanami | [`60-hanami-clean.md`](.claude/rules/60-hanami-clean.md) | 専用スクリプト | `services/hanami-clean/bin/verify-layers` |
+| Go | [`50-go-clean.md`](.claude/rules/50-go-clean.md) | go-arch-lint + 設計検証 | `services/go-clean/.go-arch-lint.yml` / `services/go-clean/tools/verifydesign/` |
+| Hanami | [`60-hanami-clean.md`](.claude/rules/60-hanami-clean.md) | 専用スクリプト + 設計検証 | `services/hanami-clean/bin/verify-layers` / `bin/verify-design` |
 | C#(.NET) | [`70-dotnet-clean.md`](.claude/rules/70-dotnet-clean.md) | ProjectReference + NetArchTest | 各 `.csproj` / `tests/ArchitectureTests/` |
 
 **規約ドキュメントと設定ファイルは同じ内容です。**
@@ -235,6 +235,40 @@ if account.user.is_active:            # NG。規則が UseCase に漏れてい�
 かつ残った指摘がいずれも妥当であることを確認しています。
 
 もちろん **違反を注入したら実際に落ちること**も 3 ルールすべてで確認済みです。
+
+### 設計検証は全スタックに入れてあります
+
+同じ考え方を、各言語の既存ツールの流儀で表現しています。
+**多言語の AST を 1 つのツールで扱うと破綻する**ため、意図的に分けました。
+
+| スタック | 実装 | 貧血症 | 外側語彙 | 公開面 |
+|---|---|---|---|---|
+| Django | `bin/verify-design`（`ast`） | ✅ | ✅ | ✅ |
+| Laravel | PHPStan カスタムルール | ✅ | — | — |
+| Go | `tools/verifydesign`（`go/ast`） | ✅ | ✅ | — |
+| Hanami | `bin/verify-design`（`ripper`） | ✅ | ✅ | ✅ |
+| .NET | NetArchTest + リフレクション | ❌ | ✅ | ✅ |
+
+**.NET の貧血症だけは機械検証できていません。**
+`if (!user.IsActive)` は「型の参照関係」としては何も壊しておらず、
+NetArchTest（IL ベース）でも ProjectReference でも見えないためです。
+検知には Roslyn アナライザが要りますが、テンプレートの複雑さに
+見合わないと判断しました。**できないことは、できないと書いています。**
+
+#### 除外リストは抜け道になる（実際に踏んだ）
+
+誤検知を減らそうとレシーバ名の除外リストを持たせていますが、
+**汎用的な名前を載せると変数名を変えるだけで回避できます。**
+
+```php
+$result = $user;
+if ($result->isActive) { ... }   // "result" を除外していたので素通りした
+```
+
+リストは「**その名前なら中身がフレームワーク・手続きの物だと断定できる**」
+ものだけに限ること（`request` / `response` / `config` など）。
+`result` / `record` / `entity` のような「中身が何でもありうる名前」や、
+1 文字の変数名は載せません。
 
 ### 主要な禁止事項
 

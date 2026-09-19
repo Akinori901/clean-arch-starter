@@ -1,7 +1,13 @@
 # 60. Ruby(Hanami) — クリーンアーキテクチャ構成ルール
 
 対象: `services/hanami-clean/`
-検証: `bin/verify-layers` + RuboCop + RSpec
+検証: `bin/verify-layers` + `bin/verify-design` + RuboCop + RSpec
+
+> **検証は 2 種類ある。** `bin/verify-layers` が見るのは
+> 「禁止されたものを参照していないか」だけ。
+> **層を越えていなくても規約違反はありうる** —— 判定規則が Operation に漏れる、
+> ドメインに HTTP の語彙が来る、公開面が広がる、など。
+> そこは `bin/verify-design` が落とす。
 
 ## なぜ Rails ではなく Hanami か
 
@@ -80,6 +86,11 @@ Active Record と違い、**この 2 つは別物**。変換は Repo が行い�
 - ❌ `operations/` から Relation / AWS SDK を直接触る（Deps で注入する）
 - ❌ `actions/` から Repo を直接触る（Operation 経由にする）
 - ❌ `operations/` が Struct を返す（Entity へ変換してから返す）
+- ❌ `operations/` が属性を直接読んで業務判定する（例: `unless user.active`）
+  → `bin/verify-design` が検知する。判定はエンティティの**述語メソッド**
+     （例: `user.can_sign_in?`）へ移し、Operation では呼ぶだけにする
+- ❌ `domain/` に HTTP の語彙（`status_code` 等）を持ち込む
+- ❌ Operation に `call` 以外の公開メソッドを生やす（手順は private へ下げる）
 
 ## Dry::Operation の作法
 

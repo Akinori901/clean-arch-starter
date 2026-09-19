@@ -124,6 +124,25 @@ services/dotnet-clean/
 **「csproj を見て禁止パッケージが無いこと」までは保証していない**点は
 把握しておくこと。レビューでは csproj の差分も見る。
 
+### 設計規約のうち、機械検証できるもの・できないもの
+
+| 規約 | 検証 |
+|---|---|
+| 1ユースケース1クラス・公開は `ExecuteAsync` のみ | ✅ `UseCase_の公開面はExecuteAsyncだけ`（リフレクション） |
+| `Domain` に HTTP の語彙を持ち込まない | ✅ `Domain_はHTTPの語彙を持たない`（NetArchTest） |
+| **業務判定を UseCase に書かない**（貧血症） | ❌ **検証できない** |
+
+**貧血症だけは .NET で機械検証できていない。**
+`if (!user.IsActive)` のような違反は「型の参照関係」としては何も壊しておらず、
+NetArchTest（IL ベース）でも ProjectReference でも見えない。
+検知するには Roslyn アナライザが要るが、テンプレートの複雑さに見合わないと
+判断して入れていない。
+
+他スタックは AST を見る自前ツールで検知している
+（Django `bin/verify-design` / Laravel の PHPStan カスタムルール /
+Go `tools/verifydesign` / Hanami `bin/verify-design`）。
+**.NET だけはレビューで見る必要がある。**
+
 ## users テーブルは共有物（重要）
 
 `users` は **Django が所有**し、既存 4 スタックと**同じ行を共有する**。
