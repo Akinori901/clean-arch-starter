@@ -74,8 +74,15 @@ NOT_DOMAIN_RECEIVERS = %w[self config settings params request response env].free
 
 # `a.b` の形（call ノード）を集める。
 # 述語メソッド（? 付き）と、引数付き呼び出しは除く。
+#
+# **呼び出しの内側は辿らない。** `foo(user.active)` のように
+# 引数として渡している場合、判定はその先が持っている。
+# Django / Go / Laravel も同じ扱いにしてある（4 スタックで揃える）。
+CALL_NODES = %i[method_add_arg command command_call].freeze
+
 def collect_attribute_reads(node, acc = [])
   return acc unless node.is_a?(Array)
+  return acc if CALL_NODES.include?(node[0])
 
   read = attribute_read(node)
   acc << read if read
@@ -146,17 +153,20 @@ def predicate_call?(node)
   name_node.is_a?(Array) && name_node[0] == :@ident && name_node[1].end_with?("?")
 end
 
-def check_anemic_domain(files)
+# 解析できなかったファイルは unparsable へ積む。
+# 1 件でもあれば検証は成立していないので、呼び出し側で落とす。
+def check_anemic_domain(files, unparsable)
   violations = []
 
   files.each do |path|
     src = File.read(path)
     sexp = Ripper.sexp(src)
     if sexp.nil?
-      # **無言で飛ばさない。** 古い Ruby では新しい構文（case/in 等）を
-      # 解析できず nil が返る。黙ってスキップすると
+      # **無言で飛ばさない。かつ OK で終わらせない。**
+      # 解析できないファイルは「検証していない」のであって
+      # 「違反が無い」ではない。exit 0 で返すと
       # 「検証が通った」と誤解したまま素通りする。
-      warn "  #{path.delete_prefix("#{ROOT}/")}: 解析できませんでした（Ruby のバージョンを確認）"
+      unparsable << path.delete_prefix("#{ROOT}/")
       next
     end
 
@@ -311,9 +321,20 @@ def glob(pattern)
 end
 
 violations = []
-violations += check_anemic_domain(glob("app/operations/**/*.rb"))
+unparsable = []
+violations += check_anemic_domain(glob("app/operations/**/*.rb"), unparsable)
 violations += check_outward_vocabulary(glob("lib/app_core/domain/**/*.rb"))
 violations += check_public_surface(glob("app/operations/**/*.rb"))
+
+unless unparsable.empty?
+  warn "設計チェック: #{unparsable.size} 件のファイルを解析できませんでした"
+  unparsable.each do |path|
+    warn "  #{path}（構文エラー、または Ruby のバージョンを確認）"
+  end
+  warn ""
+  warn "解析できないファイルは「違反が無い」ではなく「検証していない」。"
+  exit 1
+end
 
 if violations.empty?
   puts "設計チェック: OK（違反なし）"

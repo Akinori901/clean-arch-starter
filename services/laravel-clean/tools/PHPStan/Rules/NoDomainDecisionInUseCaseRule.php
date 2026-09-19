@@ -158,11 +158,38 @@ final class NoDomainDecisionInUseCaseRule implements Rule
         }
         // 変数へ入れてから if する形も拾う（AI が自然に書く抜け道）
         //   $inactive = ! $user->isActive;  if ($inactive) { ... }
-        if ($node instanceof Expr\Assign && $node->expr instanceof Expr) {
+        //
+        // **ただし「判定の形をした代入」に限る。**
+        // `$role = $user->role;` のような単なるデータ読み出しまで拾うと、
+        // 分岐が 1 つも無いコードを「業務判定している」と報告してしまう
+        // （Output DTO の組み立てが典型。実際に踏んだ）。
+        if ($node instanceof Expr\Assign && $this->looksLikeDecision($node->expr)) {
             return $node->expr;
         }
 
         return null;
+    }
+
+    /**
+     * その式は「判定の形」をしているか。
+     *
+     * 否定・比較・論理演算を含むなら真偽を作っている。
+     * 単なるプロパティ読み出し（`$user->role`）は判定ではない。
+     */
+    private function looksLikeDecision(Node $expr): bool
+    {
+        if ($expr instanceof BooleanNot) {
+            return true;
+        }
+        if ($expr instanceof BinaryOp\BooleanAnd || $expr instanceof BinaryOp\BooleanOr
+            || $expr instanceof BinaryOp\LogicalAnd || $expr instanceof BinaryOp\LogicalOr) {
+            return true;
+        }
+
+        return $expr instanceof BinaryOp\Identical
+            || $expr instanceof BinaryOp\NotIdentical
+            || $expr instanceof BinaryOp\Equal
+            || $expr instanceof BinaryOp\NotEqual;
     }
 
     /**
@@ -209,27 +236,6 @@ final class NoDomainDecisionInUseCaseRule implements Rule
     {
         return $expr instanceof Expr\ConstFetch
             && strtolower($expr->name->toString()) === 'null';
-    }
-
-    private function containsCall(Node $node): bool
-    {
-        if ($node instanceof Expr\MethodCall
-            || $node instanceof Expr\StaticCall
-            || $node instanceof Expr\FuncCall
-            || $node instanceof Expr\NullsafeMethodCall) {
-            return true;
-        }
-
-        foreach ($node->getSubNodeNames() as $name) {
-            $sub = $node->{$name};
-            foreach (is_array($sub) ? $sub : [$sub] as $child) {
-                if ($child instanceof Node && $this->containsCall($child)) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
     }
 
     /**
