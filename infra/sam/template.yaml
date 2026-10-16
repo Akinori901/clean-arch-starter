@@ -84,6 +84,15 @@ Resources:
         - !Sub 'https://${Distribution.DomainName}'
 
   # ── バックエンド（Lambda コンテナ）──────────────────────────
+  # Django の SECRET_KEY。スタック作成時に自動生成し、誰も値を見ないまま Lambda に渡す。
+  DjangoSecretKey:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: !Sub 'Django SECRET_KEY for ${AWS::StackName}'
+      GenerateSecretString:
+        PasswordLength: 64
+        ExcludePunctuation: true
+
   DjangoFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -99,7 +108,11 @@ Resources:
           COGNITO_USER_POOL_ID: !Ref UserPool
           COGNITO_CLIENT_ID: !Ref UserPoolClient
           S3_BUCKET: !Ref AssetBucket
-          DJANGO_ALLOWED_HOSTS: '*'
+          # 自動生成した値を Secrets Manager から渡す（リポジトリに載っている既定値を使わせない）
+          DJANGO_SECRET_KEY: !Sub '{{resolve:secretsmanager:${DjangoSecretKey}}}'
+          # API Gateway の既定ドメインだけを許可する。HttpApi を直接参照すると
+          # 関数 ⇄ API の循環参照になるため、サブドメインを前置ドットで受ける。
+          DJANGO_ALLOWED_HOSTS: !Sub '.execute-api.${AWS::Region}.amazonaws.com'
       Policies:
         - AWSSecretsManagerGetSecretValuePolicy: { SecretArn: !Ref DbSecretArn }
         - S3CrudPolicy: { BucketName: !Ref AssetBucket }

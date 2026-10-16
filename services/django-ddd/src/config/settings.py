@@ -9,9 +9,17 @@ import os
 from pathlib import Path
 from typing import Any
 
+from django.core.exceptions import ImproperlyConfigured
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-only-insecure-key")
+# 既定値はローカル用。公開リポジトリに載っている既知の値なので、本番で使ってはいけない。
+# Lambda 上で未設定なら起動を止める（JWT 主体でも、署名を使う機能を足した瞬間に危険になるため）。
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "")
+if not SECRET_KEY:
+    if os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+        raise ImproperlyConfigured("DJANGO_SECRET_KEY が未設定です（Lambda では必須）")
+    SECRET_KEY = "dev-only-insecure-key"
 DEBUG = os.environ.get("DJANGO_DEBUG", "false").lower() == "true"
 ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "*").split(",")
 
