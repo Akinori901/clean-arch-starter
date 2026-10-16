@@ -29,7 +29,7 @@ Parameters:
     Description: RDS のエンドポイント（Terraform 側で作る場合は SSM から渡す）
   DbSecretArn:
     Type: String
-    Description: DB 認証情報を保持する Secrets Manager の ARN
+    Description: DB 認証情報を保持する Secrets Manager の ARN（RDS が作る形式 {"username", "password"} の JSON）
   VpcSubnetIds:
     Type: List<AWS::EC2::Subnet::Id>
   LambdaSecurityGroupId:
@@ -96,6 +96,10 @@ Resources:
         Variables:
           DB_HOST: !Ref DbHost
           DB_NAME: app
+          # DB の認証情報は Secrets Manager（DbSecretArn）から動的参照で渡す。
+          # RDS が作る形式（{"username": ..., "password": ...}）を前提にする。
+          DB_USER: !Sub '{{resolve:secretsmanager:${DbSecretArn}:SecretString:username}}'
+          DB_PASSWORD: !Sub '{{resolve:secretsmanager:${DbSecretArn}:SecretString:password}}'
           COGNITO_USER_POOL_ID: !Ref UserPool
           COGNITO_CLIENT_ID: !Ref UserPoolClient
           S3_BUCKET: !Ref AssetBucket
@@ -128,6 +132,10 @@ Resources:
         Variables:
           DB_HOST: !Ref DbHost
           DB_DATABASE: app
+          # DB の認証情報は Secrets Manager（DbSecretArn）から動的参照で渡す。
+          # RDS が作る形式（{"username": ..., "password": ...}）を前提にする。
+          DB_USERNAME: !Sub '{{resolve:secretsmanager:${DbSecretArn}:SecretString:username}}'
+          DB_PASSWORD: !Sub '{{resolve:secretsmanager:${DbSecretArn}:SecretString:password}}'
           COGNITO_USER_POOL_ID: !Ref UserPool
           COGNITO_CLIENT_ID: !Ref UserPoolClient
           S3_BUCKET: !Ref AssetBucket
@@ -160,6 +168,10 @@ Resources:
         Variables:
           DB_HOST: !Ref DbHost
           DB_NAME: app
+          # DB の認証情報は Secrets Manager（DbSecretArn）から動的参照で渡す。
+          # RDS が作る形式（{"username": ..., "password": ...}）を前提にする。
+          DB_USER: !Sub '{{resolve:secretsmanager:${DbSecretArn}:SecretString:username}}'
+          DB_PASSWORD: !Sub '{{resolve:secretsmanager:${DbSecretArn}:SecretString:password}}'
           COGNITO_USER_POOL_ID: !Ref UserPool
           COGNITO_CLIENT_ID: !Ref UserPoolClient
           S3_BUCKET: !Ref AssetBucket
@@ -188,7 +200,13 @@ Resources:
         SecurityGroupIds: [!Ref LambdaSecurityGroupId]
       Environment:
         Variables:
-          DATABASE_URL: !Sub 'mysql2://app@${DbHost}:3306/app'
+          # Hanami は DATABASE_URL を config/app.rb で組み立てる（パスワードを URL エンコードするため）
+          DB_HOST: !Ref DbHost
+          DB_NAME: app
+          # DB の認証情報は Secrets Manager（DbSecretArn）から動的参照で渡す。
+          # RDS が作る形式（{"username": ..., "password": ...}）を前提にする。
+          DB_USER: !Sub '{{resolve:secretsmanager:${DbSecretArn}:SecretString:username}}'
+          DB_PASSWORD: !Sub '{{resolve:secretsmanager:${DbSecretArn}:SecretString:password}}'
           COGNITO_USER_POOL_ID: !Ref UserPool
           COGNITO_CLIENT_ID: !Ref UserPoolClient
           S3_BUCKET: !Ref AssetBucket
@@ -221,6 +239,10 @@ Resources:
         Variables:
           DB_HOST: !Ref DbHost
           DB_NAME: app
+          # DB の認証情報は Secrets Manager（DbSecretArn）から動的参照で渡す。
+          # RDS が作る形式（{"username": ..., "password": ...}）を前提にする。
+          DB_USER: !Sub '{{resolve:secretsmanager:${DbSecretArn}:SecretString:username}}'
+          DB_PASSWORD: !Sub '{{resolve:secretsmanager:${DbSecretArn}:SecretString:password}}'
           COGNITO_USER_POOL_ID: !Ref UserPool
           COGNITO_CLIENT_ID: !Ref UserPoolClient
           S3_BUCKET: !Ref AssetBucket
