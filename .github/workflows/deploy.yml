@@ -3,7 +3,8 @@
 # 原則:
 #   1. verify が通らなければデプロイしない（needs）
 #   2. AWS 認証は OIDC のみ。アクセスキーを Secrets に置かない
-#   3. main への push だけが本番デプロイのトリガー
+#   3. main への push は dev 環境へ自動デプロイする。stg / prod は workflow_dispatch で
+#      環境を選んで手動実行する（本番は人が押すまで出ない）
 name: deploy
 
 on:

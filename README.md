@@ -623,7 +623,8 @@ Violations: 1
 
 # CD
 
-`main` への push で本番デプロイが走ります。
+`main` への push で **dev 環境**へ自動デプロイします。stg / prod は Actions の
+`workflow_dispatch` で環境を選んで手動実行します（本番は人が押すまで出ません）。
 
 ```
 verify（層検証）→ backend（ECRへpush）→ infra（SAM deploy）→ frontend（S3同期+invalidation）
