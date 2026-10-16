@@ -137,6 +137,7 @@ jobs:
     outputs:
       bucket: ${{ steps.out.outputs.bucket }}
       distribution: ${{ steps.out.outputs.distribution }}
+      frontend-url: ${{ steps.out.outputs.frontend-url }}
       api-url: ${{ steps.out.outputs.api-url }}
       user-pool-id: ${{ steps.out.outputs.user-pool-id }}
       client-id: ${{ steps.out.outputs.client-id }}
@@ -188,6 +189,7 @@ jobs:
           {
             echo "bucket=$(get FrontendBucketName)"
             echo "distribution=$(get DistributionId)"
+            echo "frontend-url=$(get FrontendUrl)"
             echo "api-url=$(get ApiUrl)"
             echo "user-pool-id=$(get UserPoolId)"
             echo "client-id=$(get UserPoolClientId)"
@@ -217,7 +219,9 @@ jobs:
           VITE_API_BASE_URL: ${{ needs.infra.outputs.api-url }}
           VITE_COGNITO_AUTHORITY: https://cognito-idp.ap-northeast-1.amazonaws.com/${{ needs.infra.outputs.user-pool-id }}
           VITE_COGNITO_CLIENT_ID: ${{ needs.infra.outputs.client-id }}
-          VITE_COGNITO_REDIRECT_URI: https://${{ needs.infra.outputs.distribution }}.cloudfront.net
+          # DistributionId（E で始まる ID）ではなく実際のドメイン（d....cloudfront.net）を使う。
+          # テンプレートの CallbackURLs と一致しないと、ログイン後に redirect_mismatch になる。
+          VITE_COGNITO_REDIRECT_URI: ${{ needs.infra.outputs.frontend-url }}
         run: npm run build
 
       - uses: aws-actions/configure-aws-credentials@v5
