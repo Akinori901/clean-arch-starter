@@ -346,6 +346,10 @@ Dto（Model に一切依存しない末端ノード）
 - **Dto は Model に依存しない。** 変換は Repository 内で完結させる。
 - **Service 間の相互呼び出しを禁止。** 複数 Service の調整は UseCase の仕事。
 
+3 つ目は deptrac では検知できません。deptrac は同じレイヤー内の依存を常に許可するため、
+Service → Service は depfile.yaml に何を書いても落ちません。PHPStan のカスタムルール
+（`NoServiceToServiceRule`）で落としています。
+
 `Repository` と `RepositoryInterface` は同じディレクトリに同居させるため、
 deptrac は**ディレクトリではなくクラス名サフィックス**で層を判別します。
 
