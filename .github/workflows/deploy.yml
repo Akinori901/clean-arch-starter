@@ -3,7 +3,8 @@
 # 原則:
 #   1. verify が通らなければデプロイしない（needs）
 #   2. AWS 認証は OIDC のみ。アクセスキーを Secrets に置かない
-#   3. main への push だけが本番デプロイのトリガー
+#   3. main への push は dev 環境へ自動デプロイする。stg / prod は workflow_dispatch で
+#      環境を選んで手動実行する（本番は人が押すまで出ない）
 name: deploy
 
 on:
@@ -73,18 +74,18 @@ jobs:
       hanami-image: ${{ steps.build.outputs.hanami-image }}
       dotnet-image: ${{ steps.build.outputs.dotnet-image }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: AWS 認証（OIDC）
-        uses: aws-actions/configure-aws-credentials@v5
+        uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708 # v5
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - id: ecr
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: イメージのビルドと push
         id: build
@@ -137,16 +138,17 @@ jobs:
     outputs:
       bucket: ${{ steps.out.outputs.bucket }}
       distribution: ${{ steps.out.outputs.distribution }}
+      frontend-url: ${{ steps.out.outputs.frontend-url }}
       api-url: ${{ steps.out.outputs.api-url }}
       user-pool-id: ${{ steps.out.outputs.user-pool-id }}
       client-id: ${{ steps.out.outputs.client-id }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: aws-actions/configure-aws-credentials@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708 # v5
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-      - uses: aws-actions/setup-sam@v2
+      - uses: aws-actions/setup-sam@f84ec7d548307efafe33230528756de3c5841a17 # v2
         with:
           use-installer: true
 
@@ -188,6 +190,7 @@ jobs:
           {
             echo "bucket=$(get FrontendBucketName)"
             echo "distribution=$(get DistributionId)"
+            echo "frontend-url=$(get FrontendUrl)"
             echo "api-url=$(get ApiUrl)"
             echo "user-pool-id=$(get UserPoolId)"
             echo "client-id=$(get UserPoolClientId)"
@@ -199,8 +202,8 @@ jobs:
     if: needs.gate.outputs.deployable == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '22'
           cache: npm
@@ -217,10 +220,12 @@ jobs:
           VITE_API_BASE_URL: ${{ needs.infra.outputs.api-url }}
           VITE_COGNITO_AUTHORITY: https://cognito-idp.ap-northeast-1.amazonaws.com/${{ needs.infra.outputs.user-pool-id }}
           VITE_COGNITO_CLIENT_ID: ${{ needs.infra.outputs.client-id }}
-          VITE_COGNITO_REDIRECT_URI: https://${{ needs.infra.outputs.distribution }}.cloudfront.net
+          # DistributionId（E で始まる ID）ではなく実際のドメイン（d....cloudfront.net）を使う。
+          # テンプレートの CallbackURLs と一致しないと、ログイン後に redirect_mismatch になる。
+          VITE_COGNITO_REDIRECT_URI: ${{ needs.infra.outputs.frontend-url }}
         run: npm run build
 
-      - uses: aws-actions/configure-aws-credentials@v5
+      - uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708 # v5
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
