@@ -44,7 +44,7 @@ AI は「動くコード」を最短で書こうとするため、放ってお�
 | Django | bin/verify-design | 設計規約（貧血症・外側語彙・公開面） |
 | Django | ruff / mypy | 静的解析・型 |
 | Laravel | deptrac | 層の依存方向（クリーンアーキ） |
-| Laravel | PHPStan | 静的解析・型 + 設計規約（貧血症） |
+| Laravel | PHPStan | 静的解析・型 + 設計規約（貧血症・Service 間の相互呼び出し） |
 | Go | go-arch-lint | 層の依存方向（クリーンアーキ） |
 | Go | tools/verifydesign | 設計規約（貧血症・外側語彙） |
 | Go | golangci-lint / go vet | 静的解析 |

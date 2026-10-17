@@ -7,6 +7,10 @@
 > **層を越えていなくても規約違反はありうる** —— 例えば UseCase が Dto の
 > プロパティを読んで可否を決めれば、ビジネスロジックが Service から漏れている。
 > そこは PHPStan のカスタムルール（`tools/PHPStan/Rules/`）が落とす。
+>
+> **deptrac は同じレイヤー内の依存を常に許可する。** Service → Service は
+> レイヤーをまたがないので、depfile.yaml では落ちない（違反を注入して確認済み）。
+> これも PHPStan のカスタムルール（`NoServiceToServiceRule`）が落とす。
 
 > この規約は [clean-arch-laravel](https://github.com/Akinori901/clean-arch-laravel) を
 > 本リポジトリのサンプル（Cognito 認証・ヘルスチェック）に合わせて具体化したもの。
@@ -74,6 +78,7 @@ services/laravel-clean/app/
 - ❌ Controller / UseCase / Service から `App\Models\*` を use する
 - ❌ Dto から Model を参照する（`fromModel()` を Dto に置かない）
 - ❌ Service が別の Service を呼ぶ
+  → PHPStan のカスタムルール `NoServiceToServiceRule` が検知する（deptrac は同じレイヤー内の依存を見ない）
 - ❌ Repository が Eloquent Model / Collection をそのまま返す
 - ❌ Formatter が `JsonResponse` を返す
 - ❌ UseCase が Dto のプロパティを読んで業務判定する（例: `if (! $user->isActive)`）

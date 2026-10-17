@@ -25,3 +25,9 @@ services:
         class: Tools\PHPStan\Rules\NoDomainDecisionInUseCaseRule
         tags:
             - phpstan.rules.rule
+    # Service 間の相互呼び出し。deptrac は同じレイヤー内の依存を常に許可するため、
+    # depfile.yaml では落ちない（違反を注入して素通りすることを確認した）。
+    -
+        class: Tools\PHPStan\Rules\NoServiceToServiceRule
+        tags:
+            - phpstan.rules.rule
