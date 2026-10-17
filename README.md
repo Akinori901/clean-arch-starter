@@ -646,9 +646,14 @@ AWS 認証は **OIDC のみ**。アクセスキーを GitHub Secrets に置き�
 |---|---|
 | `AWS_DEPLOY_ROLE_ARN` | OIDC で引き受けるデプロイ用ロール |
 | `DB_HOST` | RDS のエンドポイント |
-| `DB_SECRET_ARN` | DB 認証情報の Secrets Manager ARN |
+| `DB_SECRET_ARN` | DB 認証情報の Secrets Manager ARN（RDS が作る `{"username", "password"}` の JSON 形式） |
 | `VPC_SUBNET_IDS` | Lambda を置くサブネット |
 | `LAMBDA_SG_ID` | Lambda のセキュリティグループ |
+
+DB のユーザー名・パスワードと Django の `SECRET_KEY` は、SAM テンプレートが
+Secrets Manager の**動的参照**で各 Lambda の環境変数に渡します（値をリポジトリにも
+GitHub Secrets にも置かない）。解決後の値は Lambda の設定として保存されるため、
+Lambda の設定を読める IAM 権限は絞ってください。
 
 ## Terraform 指定の案件では
 
